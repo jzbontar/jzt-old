@@ -120,8 +120,8 @@ int set_cols(lua_State *L)
 int shrink(lua_State *L)
 {
 	THCudaTensor *A = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
-	THCudaTensor *B = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
-	float threshold = luaL_checknumber(L, 3);
+	float threshold = luaL_checknumber(L, 2);
+	THCudaTensor *B = (THCudaTensor*)luaT_checkudata(L, 3, "torch.CudaTensor");
 
 	thrust::device_ptr<float> Ap(THCudaTensor_data(A));
 	thrust::device_ptr<float> Bp(THCudaTensor_data(B));
@@ -154,7 +154,9 @@ int mat_vect(Op op, lua_State *L)
 	THCudaTensor *A = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
 	THCudaTensor *x = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
 	THCudaTensor *B = (THCudaTensor*)luaT_checkudata(L, 3, "torch.CudaTensor");
-	int axis = luaL_checkint(L, 4);
+	int axis = luaL_checkint(L, 4) - 1;
+
+	assert(axis == 0 || axis == 1);
 
 	if (!is_rm(A) || !is_rm(B)) {
 		luaL_error(L, "Matrix not in row major order");
