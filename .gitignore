@@ -1,3 +1,4 @@
 *.so
+*.swp
 speed.lua
 test.lua
