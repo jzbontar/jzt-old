@@ -3,5 +3,7 @@ require 'nn'
 require 'torch'
 require 'cutorch'
 
+include('Linear.lua')
+
 include('ClassNLLCriterion.lua')
 include('L1Cost.lua')
