@@ -18,35 +18,35 @@ extern "C" {
 
 /* operations */
 struct opPlus {
-    static const float base_value = 0.0;
-    __device__ float operator()(float x, float y)
-    {
-        return x + y;
-    }
+	static const float base_value = 0.0;
+	__device__ float operator()(float x, float y)
+	{
+		return x + y;
+	}
 };
 
 struct opMinus {
-    static const float base_value = 0.0;
-    __device__ float operator()(float x, float y)
-    {
-        return x - y;
-    }
+	static const float base_value = 0.0;
+	__device__ float operator()(float x, float y)
+	{
+		return x - y;
+	}
 };
 
 struct opMult {
-    static const float base_value = 1.0;
-    __device__ float operator()(float x, float y)
-    {
-        return x * y;
-    }
+	static const float base_value = 1.0;
+	__device__ float operator()(float x, float y)
+	{
+		return x * y;
+	}
 };
 
 struct opDiv {
-    static const float base_value = 1.0;
-    __device__ float operator()(float x, float y)
-    {
-        return x / y;
-    }
+	static const float base_value = 1.0;
+	__device__ float operator()(float x, float y)
+	{
+		return x / y;
+	}
 };
 
 struct opMax {
@@ -54,6 +54,32 @@ struct opMax {
 	__device__ float operator()(float x, float y)
 	{
 		return fmaxf(x, y);
+	}
+};
+
+struct opHuber {
+	float threshold;
+	opHuber(float threshold_) : threshold(threshold_) {};
+	__device__ float operator()(float x, float y) {
+		float d = x - y;
+		if (-threshold < d && d < threshold) {
+			return 0.5 * d * d;
+		} else {
+			return threshold * (abs(d) - 0.5 * threshold);
+		}
+	}
+};
+
+struct opHuberDeriv {
+	float threshold;
+	opHuberDeriv(float threshold_) : threshold(threshold_) {};
+	__device__ float operator()(float x, float y) {
+		float d = x - y;
+		if (-threshold < d && d < threshold) {
+			return d;
+		} else {
+			return threshold * signbit(d);
+		}
 	}
 };
 
@@ -125,19 +151,70 @@ int set_cols(lua_State *L)
 }
 
 
-int shrink(lua_State *L)
+template<class Op>
+int transform1(Op op, lua_State *L)
 {
 	THCudaTensor *A = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
-	float threshold = luaL_checknumber(L, 2);
-	THCudaTensor *B = (THCudaTensor*)luaT_checkudata(L, 3, "torch.CudaTensor");
+	THCudaTensor *B = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
+	int lenA = THCudaTensor_nElement(A);
+	int lenB = THCudaTensor_nElement(B);
 
-	thrust::device_ptr<float> Ap(THCudaTensor_data(A));
-	thrust::device_ptr<float> Bp(THCudaTensor_data(B));
-	thrust::transform(Ap, Ap + THCudaTensor_nElement(A), Bp, opShrink(threshold));
+	if (!is_rm(A) || !is_rm(B)) {
+		luaL_error(L, "Matrices not in row major order");
+	}
 
+	if (lenA != lenB) {
+		luaL_error(L, "Size mismatch");
+	}
+
+	thrust::device_ptr<float> pA(THCudaTensor_data(A));
+	thrust::device_ptr<float> pB(THCudaTensor_data(B));
+	thrust::transform(pA, pA + lenA, pB, op);
 	return 0;
 }
 
+template<class Op>
+int transform2(Op op, lua_State *L)
+{
+	THCudaTensor *A = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
+	THCudaTensor *B = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
+	THCudaTensor *C = (THCudaTensor*)luaT_checkudata(L, 3, "torch.CudaTensor");
+	int lenA = THCudaTensor_nElement(A);
+	int lenB = THCudaTensor_nElement(B);
+	int lenC = THCudaTensor_nElement(C);
+
+	if (!is_rm(A) || !is_rm(B) || !is_rm(C)) {
+		luaL_error(L, "Matrices not in roj major order");
+	}
+
+	if (lenA != lenB || lenA != lenC) {
+		luaL_error(L, "Size mismatch");
+	}
+
+	thrust::device_ptr<float> pA(THCudaTensor_data(A));
+	thrust::device_ptr<float> pB(THCudaTensor_data(B));
+	thrust::device_ptr<float> pC(THCudaTensor_data(C));
+	thrust::transform(pA, pA + lenA, pB, pC, op);
+	return 0;
+}
+
+int huber(lua_State *L)
+{
+	float threshold = luaL_checknumber(L, 4);
+	return transform2(opHuber(threshold), L);
+}
+
+int huber_deriv(lua_State *L)
+{
+	float threshold = luaL_checknumber(L, 4);
+	return transform2(opHuberDeriv(threshold), L);
+}
+
+int shrink(lua_State *L)
+{
+	float threshold = luaL_checknumber(L, 3);
+	return transform1(opShrink(threshold), L);
+}
 
 /* What a crazy bug!
  *
@@ -294,11 +371,12 @@ int _max(lua_State *L)
 	return reduce(opMax(), L);
 }
 
-
 static const struct luaL_Reg funcs[] = {
 	{"add_mat_vect", add_mat_vect},
 	{"div_mat_vect", div_mat_vect},
 	{"get_cols", get_cols},
+	{"huber", huber},
+	{"huber_deriv", huber_deriv},
 	{"max", _max},
 	{"mult_mat_vect", mult_mat_vect},
 	{"set_cols", set_cols},
