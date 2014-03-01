@@ -49,6 +49,14 @@ struct opDiv {
     }
 };
 
+struct opMax {
+	static const float base_value = -2e38;
+	__device__ float operator()(float x, float y)
+	{
+		return fmaxf(x, y);
+	}
+};
+
 struct opShrink {
 	float threshold;
 	opShrink(float threshold_) : threshold(threshold_) {};
@@ -203,15 +211,101 @@ int div_mat_vect(lua_State *L)
 	return mat_vect(opDiv(), L);
 }
 
+/* What a crazy bug!
+ *
+ *
+ *
+ *
+ *
+ */
+template <class Op>
+__global__ void kReduce(Op op, float *A, float *x, int n, int axis)
+{
+	extern __shared__ float sdata[];
+
+	int i = threadIdx.x;
+
+	sdata[i] = op.base_value;
+	if (i < n) {
+		if (axis == 0) {
+			sdata[i] = A[gridDim.x * threadIdx.x + blockIdx.x];
+		} else if (axis == 1) {
+			sdata[i] = A[threadIdx.x + n * blockIdx.x];
+		}
+	}
+	__syncthreads();
+
+	for (int s = blockDim.x >> 1; s > 0; s >>= 1) {
+		if (i < s) {
+			sdata[i] = op(sdata[i], sdata[i + s]);
+		}
+		__syncthreads();
+	}
+
+	if (i == 0) {
+		x[blockIdx.x] = sdata[0];
+	}
+}
+
+template <class Op>
+int reduce(Op op, lua_State *L)
+{
+	int reduce_dim, other_dim;
+
+	THCudaTensor *A = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
+	THCudaTensor *x = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
+	int axis = luaL_checkint(L, 3) - 1;
+
+	if (!is_rm(A)) {
+		luaL_error(L, "Matrix not in row major order");
+	}
+
+	assert(axis == 0 || axis == 1);
+	if (axis == 0) {
+		reduce_dim = A->size[0];
+		other_dim = A->size[1];
+	} else if (axis == 1) {
+		reduce_dim = A->size[1];
+		other_dim = A->size[0];
+	}
+
+	assert(reduce_dim <= 1024);
+	if (other_dim != THCudaTensor_nElement(x)) {
+		luaL_error(L, "Size mismatch"); 
+	}
+
+	int threads = 1;
+	while(threads < reduce_dim) {
+		threads = threads << 1;
+	}
+
+	kReduce<Op><<<other_dim, threads, threads * sizeof(float)>>>(op, THCudaTensor_data(A), THCudaTensor_data(x), reduce_dim, axis);
+	checkCudaError(L);
+	return 0;
+}
+
+int sum(lua_State *L)
+{
+	return reduce(opPlus(), L);
+}
+
+int _max(lua_State *L)
+{
+	return reduce(opMax(), L);
+}
+
 
 static const struct luaL_Reg funcs[] = {
+	{"add_mat_vect", add_mat_vect},
+	{"div_mat_vect", div_mat_vect},
 	{"get_cols", get_cols},
+	{"max", _max},
+	{"mult_mat_vect", mult_mat_vect},
 	{"set_cols", set_cols},
 	{"shrink", shrink},
-	{"add_mat_vect", add_mat_vect},
 	{"sub_mat_vect", sub_mat_vect},
-	{"mult_mat_vect", mult_mat_vect},
-	{"div_mat_vect", div_mat_vect},
+	{"sum", sum},
+
 	{NULL, NULL}
 };
 

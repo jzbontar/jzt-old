@@ -38,5 +38,5 @@ end
 
 function Linear:accGradParameters(input, gradOutput)
    self.gradWeight:addmm(0, 1, gradOutput:t(), input)
-   self.gradBias:sum(gradOutput, 1)
+   jzt.sum(gradOutput, self.gradBias, 1)
 end
