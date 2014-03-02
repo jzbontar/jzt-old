@@ -8,6 +8,7 @@ extern "C" {
 #include "THC.h"
 
 #include <thrust/transform.h>
+#include <thrust/reduce.h>
 #include <thrust/device_ptr.h>
 
 #include <stdio.h>
@@ -54,6 +55,46 @@ struct opMax {
 	__device__ float operator()(float x, float y)
 	{
 		return fmaxf(x, y);
+	}
+};
+
+struct opSigmoid {
+public:
+	__device__ float operator()(float x)
+	{
+		return 1 / (1 + exp(-x));
+	}
+};
+
+struct opSigmoidDeriv {
+public:
+	__device__ float operator()(float x, float y)
+	{
+		return x * y * (1 - y);
+	}
+};
+
+struct opTanh {
+public:
+	__device__ float operator()(float x)
+	{
+		return 2 / (1 + exp(-2 * x)) - 1;
+	}
+};
+
+struct opTanhDeriv {
+public:
+	__device__ float operator()(float x, float y)
+	{
+		return x * (1 - y * y);
+	}
+};
+
+struct opCCE {
+public:
+	__device__ float operator()(float input, float target)
+	{
+		return target > 0 ? target * log(input) : 0;
 	}
 };
 
@@ -216,6 +257,38 @@ int shrink(lua_State *L)
 	return transform1(opShrink(threshold), L);
 }
 
+int sigmoid(lua_State *L)
+{
+	return transform1(opSigmoid(), L);
+}
+
+int mult_by_sigmoid_deriv(lua_State *L)
+{
+	return transform2(opSigmoidDeriv(), L);
+}
+
+int tanh(lua_State *L)
+{
+	return transform1(opTanh(), L);
+}
+
+int mult_by_tanh_deriv(lua_State *L)
+{
+	return transform2(opTanhDeriv(), L);
+}
+
+int cce(lua_State *L)
+{
+	THCudaTensor *C = (THCudaTensor*)luaT_checkudata(L, 3, "torch.CudaTensor");
+
+	transform2(opCCE(), L);
+	thrust::device_ptr<float> pC(THCudaTensor_data(C));
+	float sum = thrust::reduce(pC, pC + THCudaTensor_nElement(C));
+
+	lua_pushnumber(L, -sum);
+	return 1;
+}
+
 /* What a crazy bug!
  *
  *
@@ -373,16 +446,21 @@ int _max(lua_State *L)
 
 static const struct luaL_Reg funcs[] = {
 	{"add_mat_vect", add_mat_vect},
+	{"cce", cce},
 	{"div_mat_vect", div_mat_vect},
 	{"get_cols", get_cols},
 	{"huber", huber},
 	{"huber_deriv", huber_deriv},
 	{"max", _max},
+	{"mult_by_sigmoid_deriv", mult_by_sigmoid_deriv},
+	{"mult_by_tanh_deriv", mult_by_tanh_deriv},
 	{"mult_mat_vect", mult_mat_vect},
 	{"set_cols", set_cols},
 	{"shrink", shrink},
+	{"sigmoid", sigmoid},
 	{"sub_mat_vect", sub_mat_vect},
 	{"sum", sum},
+	{"tanh", tanh},
 
 	{NULL, NULL}
 };
