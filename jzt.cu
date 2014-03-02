@@ -58,6 +58,14 @@ struct opMax {
 	}
 };
 
+struct opExp {
+public:
+	__device__ float operator()(float x)
+	{
+		return exp(x);
+	}
+};
+
 struct opSigmoid {
 public:
 	__device__ float operator()(float x)
@@ -78,7 +86,7 @@ struct opTanh {
 public:
 	__device__ float operator()(float x)
 	{
-		return 2 / (1 + exp(-2 * x)) - 1;
+		return tanh(x);
 	}
 };
 
@@ -142,7 +150,7 @@ struct opShrink {
 /* Is A in row major format? */
 int is_rm(THCudaTensor *A)
 {
-	return A->stride[1] == 1;
+	return A->stride[1] == 1 || A->nDimension == 1;
 }
 
 void checkCudaError(lua_State *L) {
@@ -289,6 +297,11 @@ int cce(lua_State *L)
 	return 1;
 }
 
+int _exp(lua_State *L)
+{
+	return transform1(opExp(), L);
+}
+
 /* What a crazy bug!
  *
  *
@@ -361,6 +374,34 @@ int div_mat_vect(lua_State *L)
 	return mat_vect(opDiv(), L);
 }
 
+__global__ void kAdd(float *A, float *B, float *C, float alpha, int len)
+{
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i < len) C[i] = A[i] + alpha * B[i];
+}
+
+/* C = A + alpha * B */
+int add(lua_State *L)
+{
+	THCudaTensor *A = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
+	THCudaTensor *B = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
+	THCudaTensor *C = (THCudaTensor*)luaT_checkudata(L, 3, "torch.CudaTensor");
+	float alpha = luaL_optnumber(L, 4, 1.0);
+
+	if (!is_rm(A) || !is_rm(B) || !is_rm(C)) {
+		luaL_error(L, "Matrices not in row major order");
+	}
+
+	if (!(A->size[0] == B->size[0] && A->size[1] == B->size[1] && A->size[0] == C->size[0] && A->size[1] == C->size[1])) {
+		luaL_error(L, "Size mismatch");
+	}
+
+	int len = THCudaTensor_nElement(A);
+	kAdd<<<(len - 1) / TB + 1, TB>>>(THCudaTensor_data(A), THCudaTensor_data(B), THCudaTensor_data(C), alpha, len);
+	checkCudaError(L);
+	return 0;
+}
+
 /* What a crazy bug!
  *
  *
@@ -410,7 +451,10 @@ int reduce(Op op, lua_State *L)
 		luaL_error(L, "Matrix not in row major order");
 	}
 
-	assert(axis == 0 || axis == 1);
+	if (axis != 0 && axis != 1) {
+		luaL_error(L, "axis not in {0, 1}");
+	}
+
 	if (axis == 0) {
 		reduce_dim = A->size[0];
 		other_dim = A->size[1];
@@ -445,9 +489,11 @@ int _max(lua_State *L)
 }
 
 static const struct luaL_Reg funcs[] = {
+	{"add", add},
 	{"add_mat_vect", add_mat_vect},
 	{"cce", cce},
 	{"div_mat_vect", div_mat_vect},
+	{"exp", _exp},
 	{"get_cols", get_cols},
 	{"huber", huber},
 	{"huber_deriv", huber_deriv},
