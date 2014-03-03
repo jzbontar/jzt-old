@@ -63,10 +63,8 @@ function testCriterion(module, input, target)
       grad_hat[i] = (f1 - f2) / (2 * eps)
       sinput[i] = orig
    end
-   print(sinput)
 
    module:forward(input, target)
    module:backward(input, target)
-   print(module.gradInput)
    return module.gradInput:double():add(-1, grad_hat):abs():max()
 end
