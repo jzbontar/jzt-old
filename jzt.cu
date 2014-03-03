@@ -98,14 +98,6 @@ public:
 	}
 };
 
-struct opCCE {
-public:
-	__device__ float operator()(float input, float target)
-	{
-		return target > 0 ? target * log(input) : 0;
-	}
-};
-
 struct opHuber {
 	float threshold;
 	opHuber(float threshold_) : threshold(threshold_) {};
@@ -283,18 +275,6 @@ int tanh(lua_State *L)
 int mult_by_tanh_deriv(lua_State *L)
 {
 	return transform2(opTanhDeriv(), L);
-}
-
-int cce(lua_State *L)
-{
-	THCudaTensor *C = (THCudaTensor*)luaT_checkudata(L, 3, "torch.CudaTensor");
-
-	transform2(opCCE(), L);
-	thrust::device_ptr<float> pC(THCudaTensor_data(C));
-	float sum = thrust::reduce(pC, pC + THCudaTensor_nElement(C));
-
-	lua_pushnumber(L, -sum);
-	return 1;
 }
 
 int _exp(lua_State *L)
@@ -491,7 +471,6 @@ int _max(lua_State *L)
 static const struct luaL_Reg funcs[] = {
 	{"add", add},
 	{"add_mat_vect", add_mat_vect},
-	{"cce", cce},
 	{"div_mat_vect", div_mat_vect},
 	{"exp", _exp},
 	{"get_cols", get_cols},
