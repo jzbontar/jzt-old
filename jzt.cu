@@ -483,6 +483,47 @@ int _max(lua_State *L)
 	return reduce(opMax(), L);
 }
 
+__global__ void kShrink2(float *x1, float *x2, float l, float g, int len)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < len) {
+		float u, v;
+		// This must be painfully slow because of branching
+		u = -l -g +x1[i]; v = -l +g +x2[i]; if (u > v && v > 0) goto end;
+		u = -l -g +x1[i]; v = +l +g +x2[i]; if (u > 0 && 0 > v) goto end;
+		u = -l +g +x1[i]; v = -l -g +x2[i]; if (v > u && u > 0) goto end;
+		u = +l +g +x1[i]; v = -l -g +x2[i]; if (v > 0 && 0 > u) goto end;
+		u = +l -g +x1[i]; v = +l +g +x2[i]; if (0 > u && u > v) goto end;
+		u = +l +g +x1[i]; v = +l -g +x2[i]; if (0 > v && v > u) goto end;
+end:
+		x1[i] = u;
+		x2[i] = v;
+    }
+}
+
+int shrink2(lua_State *L)
+{
+	THCudaTensor *x1 = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
+	THCudaTensor *x2 = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
+	float lambda = luaL_checknumber(L, 3);
+	float gamma = luaL_checknumber(L, 4);
+
+	int x1_size = THCudaTensor_nElement(x1);
+	int x2_size = THCudaTensor_nElement(x2);
+	
+	if (!is_rm(x1) && !is_rm(x2)) {
+		luaL_error(L, "Matrix not in row major order");
+	}
+
+	if (x1_size != x2_size) {
+		luaL_error(L, "Size mismatch");
+	}
+
+	kShrink2<<<(x1_size - 1)  / TB + 1, TB>>>(THCudaTensor_data(x1), THCudaTensor_data(x2), lambda, gamma, x1_size);
+	checkCudaError(L);
+	return 0;
+}
+
 static const struct luaL_Reg funcs[] = {
 	{"add", add},
 	{"add_mat_vect", add_mat_vect},
