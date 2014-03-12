@@ -6,7 +6,7 @@ function testJacobian(module, input, x, dx)
    x = x or input
 
    local sx = torch.CudaTensor(x:storage())
-   local gradInput = ct.emptyAs(module.output)
+   local gradInput = torch.CudaTensor():resizeAs(module.output)
    local sgradInput = torch.CudaTensor(gradInput:storage())
    local jacobian = torch.Tensor(sx:nElement(), gradInput:nElement())
    local jacobian_hat = torch.Tensor(sx:nElement(), gradInput:nElement())
@@ -21,7 +21,7 @@ function testJacobian(module, input, x, dx)
          module:accGradParameters(input, gradInput)
          jacobian:select(2, i):copy(dx)
       else
-         jacobian:select(2, i):copy(module.gradInput:t())
+         jacobian:select(2, i):copy(module.gradInput)
       end
       sgradInput[i] = 0
    end
@@ -37,7 +37,7 @@ function testJacobian(module, input, x, dx)
       module:forward(input)
       local f2 = module.output:clone()
 
-      jacobian_hat:select(1, i):copy(f1:add(-1, f2):div(2 * eps):t())
+      jacobian_hat:select(1, i):copy(f1:add(-1, f2):div(2 * eps))
       sx[i] = orig
    end
 
