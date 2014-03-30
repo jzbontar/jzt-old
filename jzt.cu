@@ -545,7 +545,6 @@ __global__ void sc1_updateOutput_kernel(float *input, float *output, int batch_s
 			float s = 0;
 			for (int j = 0; j < num_input; j++) {
 				s += input_reg[j] * sc1_weight[i * num_input + j];
-
 			}
 			output[(batch * num_output + i) * img_size + id] = s;
 		}
@@ -578,15 +577,6 @@ int sc1_updateOutput(lua_State *L)
 
 __global__ void sc1_accGradParameters_kernel(float *input, float *grad_output, float *grad_tmp, int batch_size, int img_size, int num_input, int num_output)
 {
-/*
-	float s = 0;
-	for (int k = 0; k < batch_size; k++) {
-		s += grad_output[(k * num_output + threadIdx.x) * img_size + blockIdx.x] * 
-		     input[(k * num_input + threadIdx.y) * img_size + blockIdx.x];
-	}
-	grad_tmp[(threadIdx.x * num_input + threadIdx.y) * img_size + blockIdx.x] = s;
-*/
-
 	__shared__ float input_s[32 * 16];
 	__shared__ float grad_output_s[32 * 16];
 
@@ -631,6 +621,38 @@ int sc1_accGradParameters(lua_State *L)
 	return 0;
 }
 
+__global__ void add_bias4_kernel(float *input, float *bias, int input_size, int bias_size, int img_size)
+{
+	int id = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if (id < input_size) {
+		input[id] += bias[(id / img_size) % bias_size];
+	}
+}
+
+int add_bias4(lua_State *L)
+{
+	THCudaTensor *input = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
+	THCudaTensor *bias = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
+
+	int i[] = {THCudaTensor_size(input, 0), THCudaTensor_size(input, 1), THCudaTensor_size(input, 2), THCudaTensor_size(input, 3)};
+
+	assert(THCudaTensor_size(input, 1) == THCudaTensor_nElement(bias));
+	assert(THCudaTensor_size(input, 1) <= 32);
+
+	if (!is_rm(input) || !is_rm(bias)) {
+		luaL_error(L, "Matrix not in row major order");
+	}
+
+	add_bias4_kernel<<<(THCudaTensor_nElement(input) - 1) / TB + 1, TB>>>(
+		THCudaTensor_data(input), 
+		THCudaTensor_data(bias), 
+		THCudaTensor_nElement(input),
+		THCudaTensor_size(input, 1),
+		THCudaTensor_size(input, 2) * THCudaTensor_size(input, 3));
+	return 0;
+}
+
 static const struct luaL_Reg funcs[] = {
 	{"add", add},
 	{"add_mat_vect", add_mat_vect},
@@ -653,6 +675,8 @@ static const struct luaL_Reg funcs[] = {
 
 	{"sc1_updateOutput", sc1_updateOutput},
 	{"sc1_accGradParameters", sc1_accGradParameters},
+
+	{"add_bias4", add_bias4},
 
 	{NULL, NULL}
 };

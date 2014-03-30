@@ -31,6 +31,7 @@ function test.Linear()
    print(testJacobianParameters(module, A))
 end
 
+test = {}
 function test.SpatialConvolution1()
    A = torch.CudaTensor(3, 4, 5, 5):normal()
    module = jzt.SpatialConvolution1(4, 2)
