@@ -7,6 +7,7 @@ include('util.lua')
 
 include('Linear.lua')
 include('Tanh.lua')
+include('SpatialConvolution1.lua')
 
 include('ClassNLLCriterion.lua')
 include('L1Cost.lua')

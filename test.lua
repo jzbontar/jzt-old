@@ -3,24 +3,40 @@ require 'Test'
 
 test = {}
 function test.HuberCost()
-   A = torch.rand(5, 3):cuda()
-   B = torch.rand(5, 3):cuda()
+   A = torch.CudaTensor(5, 3):normal()
+   B = torch.CudaTensor(5, 3):normal()
 
-   assert(testCriterion(jzt.HuberCost(1), A, B) < 1e-3)
+   print(testCriterion(jzt.HuberCost(1), A, B))
 end
 
 function test.KLDivergence()
-   A = torch.rand(5, 3):cuda():log()
-   B = torch.rand(5, 3):cuda():log()
+   A = torch.CudaTensor(5, 3):normal():log()
+   B = torch.CudaTensor(5, 3):normal():log()
 
-   assert(testCriterion(jzt.KLDivergence(), A, B) < 1e-3)
+   print(testCriterion(jzt.KLDivergence(), A, B))
 end
 
-function test.ClassNLLCriterion()
-   A = torch.rand(5, 3):cuda()
-   B = torch.eye(3):index(1, torch.LongTensor{1,2,3,1,2}):cuda()
+-- function test.ClassNLLCriterion()
+--    A = torch.CudaTensor(5, 3):normal()
+--    B = torch.eye(3):index(1, torch.LongTensor{1,2,3,1,2})
+-- 
+--    print(testCriterion(jzt.ClassNLLCriterion(), A, B))
+-- end
 
-   assert(testCriterion(jzt.ClassNLLCriterion(), A, B) < 1e-3)
+function test.Linear()
+   A = torch.CudaTensor(5, 3):normal()
+   
+   module = jzt.Linear(3, 4)
+   print(testJacobian(module, A))
+   print(testJacobianParameters(module, A))
+end
+
+function test.SpatialConvolution1()
+   A = torch.CudaTensor(3, 4, 5, 5):normal()
+   module = jzt.SpatialConvolution1(4, 2)
+
+   print(testJacobian(module, A))
+   print(testJacobianParameters(module, A))
 end
 
 for k, v in pairs(test) do

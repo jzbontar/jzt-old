@@ -151,7 +151,12 @@ struct opShrink {
 /* Is A in row major format? */
 int is_rm(THCudaTensor *A)
 {
-	return A->stride[1] == 1 || A->nDimension == 1;
+	for (int i = 0; i < 4; i++) {
+		if (A->nDimension == i + 1) return 1;
+		if (A->stride[i] < A->stride[i + 1]) return 0;
+	}
+	assert(0);
+	return 0;
 }
 
 void checkCudaError(lua_State *L) {
@@ -524,6 +529,108 @@ int shrink2(lua_State *L)
 	return 0;
 }
 
+__constant__ float sc1_weight[32 * 16];
+
+__global__ void sc1_updateOutput_kernel(float *input, float *output, int batch_size, int img_size, int num_input, int num_output)
+{
+	int id = blockIdx.x * blockDim.x + threadIdx.x;
+	float input_reg[32];
+
+	for (int batch = 0; batch < batch_size; batch++) {
+		for (int j = 0; j < num_input; j++) {
+			input_reg[j] = input[(batch * num_input + j) * img_size + id];
+		}
+
+		for (int i = 0; i < num_output; i++) {
+			float s = 0;
+			for (int j = 0; j < num_input; j++) {
+				s += input_reg[j] * sc1_weight[i * num_input + j];
+
+			}
+			output[(batch * num_output + i) * img_size + id] = s;
+		}
+	}
+}
+
+int sc1_updateOutput(lua_State *L)
+{
+	THCudaTensor *input = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
+	THCudaTensor *weight = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
+	THCudaTensor *output = (THCudaTensor*)luaT_checkudata(L, 3, "torch.CudaTensor");
+
+	int batch_size = THCudaTensor_size(input, 0);
+	int img_size = THCudaTensor_size(input, 2) * THCudaTensor_size(input, 3);
+	int num_input = THCudaTensor_size(weight, 1);
+	int num_output = THCudaTensor_size(weight, 0);
+
+	if (!is_rm(input) || !is_rm(weight) || !is_rm(output)) {
+		luaL_error(L, "Matrix not in row major order");
+	}
+
+	assert(num_input <= 32 && num_input * num_output <= 32 * 16);
+	cudaMemcpyToSymbol(sc1_weight, THCudaTensor_data(weight), num_input * num_output * sizeof(float), 0, cudaMemcpyDeviceToDevice);
+
+	sc1_updateOutput_kernel<<<(img_size - 1) / TB + 1, TB>>>(THCudaTensor_data(input), THCudaTensor_data(output), batch_size, img_size, num_input, num_output);
+
+	checkCudaError(L);
+	return 0;
+}
+
+__global__ void sc1_accGradParameters_kernel(float *input, float *grad_output, float *grad_tmp, int batch_size, int img_size, int num_input, int num_output)
+{
+/*
+	float s = 0;
+	for (int k = 0; k < batch_size; k++) {
+		s += grad_output[(k * num_output + threadIdx.x) * img_size + blockIdx.x] * 
+		     input[(k * num_input + threadIdx.y) * img_size + blockIdx.x];
+	}
+	grad_tmp[(threadIdx.x * num_input + threadIdx.y) * img_size + blockIdx.x] = s;
+*/
+
+	__shared__ float input_s[32 * 16];
+	__shared__ float grad_output_s[32 * 16];
+
+	for (int i = threadIdx.y * blockDim.x + threadIdx.x; i < num_input * batch_size; i += blockDim.x * blockDim.y) {
+		input_s[i] = input[i * img_size + blockIdx.x];
+	}
+
+	for (int i = threadIdx.y * blockDim.x + threadIdx.x; i < num_output * batch_size; i += blockDim.x * blockDim.y) {
+		grad_output_s[i] = grad_output[i * img_size + blockIdx.x];
+	}
+
+	__syncthreads();
+	
+	float s = 0;
+	for (int k = 0; k < batch_size; k++) {
+		s += grad_output_s[k * num_output + threadIdx.x] * input_s[k * num_input + threadIdx.y];
+	}
+
+	grad_tmp[(threadIdx.x * num_input + threadIdx.y) * img_size + blockIdx.x] = s;
+}
+
+int sc1_accGradParameters(lua_State *L)
+{
+	THCudaTensor *input = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
+	THCudaTensor *grad_output = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
+	THCudaTensor *grad_tmp = (THCudaTensor*)luaT_checkudata(L, 3, "torch.CudaTensor");
+
+	int batch_size = THCudaTensor_size(input, 0);
+	int img_size = THCudaTensor_size(input, 2) * THCudaTensor_size(input, 3);
+	int num_input = THCudaTensor_size(input, 1);
+	int num_output = THCudaTensor_size(grad_output, 1);
+
+	if (!is_rm(input) || !is_rm(grad_output) || !is_rm(grad_tmp)) {
+		luaL_error(L, "Matrix not in row major order");
+	}
+
+	assert(num_input <= 32 && batch_size <= 16 && num_input * num_output <= 32 * 16);
+	dim3 block(num_output, num_input);
+	sc1_accGradParameters_kernel<<<img_size, block>>>(THCudaTensor_data(input), THCudaTensor_data(grad_output), THCudaTensor_data(grad_tmp), batch_size, img_size, num_input, num_output);
+
+	checkCudaError(L);
+	return 0;
+}
+
 static const struct luaL_Reg funcs[] = {
 	{"add", add},
 	{"add_mat_vect", add_mat_vect},
@@ -543,6 +650,9 @@ static const struct luaL_Reg funcs[] = {
 	{"sum", sum},
 	{"smul", smul},
 	{"tanh", tanh},
+
+	{"sc1_updateOutput", sc1_updateOutput},
+	{"sc1_accGradParameters", sc1_accGradParameters},
 
 	{NULL, NULL}
 };
