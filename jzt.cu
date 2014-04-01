@@ -575,7 +575,7 @@ int sc1_updateOutput(lua_State *L)
 	return 0;
 }
 
-__global__ void sc1_accGradParameters_kernel(float *input, float *grad_output, float *grad_tmp, int batch_size, int img_size, int num_input, int num_output)
+__global__ void sc1_accGradParameters_kernel(float *input, float *grad_output, float *grad, int batch_size, int img_size, int num_input, int num_output)
 {
 	__shared__ float input_s[32 * 16];
 	__shared__ float grad_output_s[32 * 16];
@@ -594,28 +594,28 @@ __global__ void sc1_accGradParameters_kernel(float *input, float *grad_output, f
 	for (int k = 0; k < batch_size; k++) {
 		s += grad_output_s[k * num_output + threadIdx.x] * input_s[k * num_input + threadIdx.y];
 	}
-
-	grad_tmp[(threadIdx.x * num_input + threadIdx.y) * img_size + blockIdx.x] = s;
+	
+	atomicAdd(grad + threadIdx.x * num_input + threadIdx.y, s);
 }
 
 int sc1_accGradParameters(lua_State *L)
 {
 	THCudaTensor *input = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
 	THCudaTensor *grad_output = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
-	THCudaTensor *grad_tmp = (THCudaTensor*)luaT_checkudata(L, 3, "torch.CudaTensor");
+	THCudaTensor *grad = (THCudaTensor*)luaT_checkudata(L, 3, "torch.CudaTensor");
 
 	int batch_size = THCudaTensor_size(input, 0);
 	int img_size = THCudaTensor_size(input, 2) * THCudaTensor_size(input, 3);
 	int num_input = THCudaTensor_size(input, 1);
 	int num_output = THCudaTensor_size(grad_output, 1);
 
-	if (!is_rm(input) || !is_rm(grad_output) || !is_rm(grad_tmp)) {
+	if (!is_rm(input) || !is_rm(grad_output) || !is_rm(grad)) {
 		luaL_error(L, "Matrix not in row major order");
 	}
 
 	assert(num_input <= 32 && batch_size <= 16 && num_input * num_output <= 32 * 16);
 	dim3 block(num_output, num_input);
-	sc1_accGradParameters_kernel<<<img_size, block>>>(THCudaTensor_data(input), THCudaTensor_data(grad_output), THCudaTensor_data(grad_tmp), batch_size, img_size, num_input, num_output);
+	sc1_accGradParameters_kernel<<<img_size, block>>>(THCudaTensor_data(input), THCudaTensor_data(grad_output), THCudaTensor_data(grad), batch_size, img_size, num_input, num_output);
 
 	checkCudaError(L);
 	return 0;
@@ -635,8 +635,6 @@ int add_bias4(lua_State *L)
 	THCudaTensor *input = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
 	THCudaTensor *bias = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
 
-	int i[] = {THCudaTensor_size(input, 0), THCudaTensor_size(input, 1), THCudaTensor_size(input, 2), THCudaTensor_size(input, 3)};
-
 	assert(THCudaTensor_size(input, 1) == THCudaTensor_nElement(bias));
 	assert(THCudaTensor_size(input, 1) <= 32);
 
@@ -650,6 +648,39 @@ int add_bias4(lua_State *L)
 		THCudaTensor_nElement(input),
 		THCudaTensor_size(input, 1),
 		THCudaTensor_size(input, 2) * THCudaTensor_size(input, 3));
+	checkCudaError(L);
+	return 0;
+}
+
+__global__ StereoJoin_updateOutput_kernel(
+
+int StereoJoin_updateOutput(lua_State *L)
+{
+	THCudaTensor *left = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
+	THCudaTensor *right = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
+	THCudaTensor *output = (THCudaTensor*)luaT_checkudata(L, 3, "torch.CudaTensor");
+	
+	if (!is_rm(left) || !is_rm(right) || !is_rm(output)) {
+		luaL_error(L, "Matrix not in row major order");
+	}
+
+	int bs = THCudaTensor_size(output, 1);
+	int n = THCudaTensor_size(output, 2);
+	int h = THCudaTensor_size(output, 3);
+	int w = THCudaTensor_size(output, 4);
+
+	assert(h == 250 && w == 1224);
+
+	dim3 grid(250, 2, n * bs);
+
+	StereoJoin_updateOutput_kernel<<<grid, 640>>>(
+		THCudaTensor_data(left),
+		THCudaTensor_data(right),
+		THCudaTensor_data(output),
+		THCudaTensor_size(left, 2),
+		h * w);
+
+	checkCudaError(L);
 	return 0;
 }
 
@@ -675,7 +706,6 @@ static const struct luaL_Reg funcs[] = {
 
 	{"sc1_updateOutput", sc1_updateOutput},
 	{"sc1_accGradParameters", sc1_accGradParameters},
-
 	{"add_bias4", add_bias4},
 
 	{NULL, NULL}
