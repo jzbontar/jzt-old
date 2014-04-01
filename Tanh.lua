@@ -1,18 +1,17 @@
 local Tanh, parent = torch.class('jzt.Tanh','nn.Module')
 
-function Tanh:__init()
+function Tanh:__init(prev_module)
    parent.__init(self)
    self:cuda()
+
+   self.output = prev_module.output
+   self.gradInput = prev_module.gradInput
 end
 
 function Tanh:updateOutput(input)
-   self.output:resizeAs(input)
-   jzt.tanh(input, self.output)
-   return self.output
+   jzt.tanh(self.output, self.output)
 end
 
 function Tanh:updateGradInput(input, gradOutput)
-   self.gradInput:resizeAs(input)
-   jzt.mult_by_tanh_deriv(gradOutput, self.output, self.gradInput)
-   return self.gradInput
+   jzt.mult_by_tanh_deriv(gradOutput, self.output, gradOutput)
 end
