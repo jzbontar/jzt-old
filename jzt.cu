@@ -531,15 +531,13 @@ int shrink2(lua_State *L)
 
 __constant__ float sc1_weight[32 * 16];
 
-__global__ void sc1_updateOutput_kernel(float *input, float *output, int batch_size, int img_size, int num_input, int num_output)
+__global__ void sc1_updateOutput_kernel(float *input, float *output, int img_size, int num_input, int num_output)
 {
 	int id = blockIdx.x * blockDim.x + threadIdx.x;
+	int batch = blockIdx.y;
 	float input_reg[32];
 
-	if (id >= img_size)
-		return;
-
-	for (int batch = 0; batch < batch_size; batch++) {
+	if (id < img_size) { 
 		for (int j = 0; j < num_input; j++) {
 			input_reg[j] = input[(batch * num_input + j) * img_size + id];
 		}
@@ -572,7 +570,8 @@ int sc1_updateOutput(lua_State *L)
 	assert(num_input <= 32 && num_input * num_output <= 32 * 16);
 	cudaMemcpyToSymbol(sc1_weight, THCudaTensor_data(weight), num_input * num_output * sizeof(float), 0, cudaMemcpyDeviceToDevice);
 
-	sc1_updateOutput_kernel<<<(img_size - 1) / TB + 1, TB>>>(THCudaTensor_data(input), THCudaTensor_data(output), batch_size, img_size, num_input, num_output);
+	dim3 grid((img_size - 1) / TB + 1, batch_size);
+	sc1_updateOutput_kernel<<<grid, TB>>>(THCudaTensor_data(input), THCudaTensor_data(output), img_size, num_input, num_output);
 
 	checkCudaError(L);
 	return 0;
