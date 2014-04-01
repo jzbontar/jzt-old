@@ -4,3 +4,6 @@ LDFLAGS=-L$(PREFIX)/lib -Xlinker -rpath,$(PREFIX)/lib -lcublas -lluaT -lTHC -lTH
 
 libjzt.so: jzt.cu
 	nvcc -arch sm_35 --compiler-options '-fPIC' -o libjzt.so --shared jzt.cu $(CFLAGS) $(LDFLAGS)
+
+install: libjzt.so
+	ln -s /home/jure/torch/jzt/libjzt.so /home/jure/build/torch/installed/lib/torch/lua/
