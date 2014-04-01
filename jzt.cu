@@ -536,6 +536,9 @@ __global__ void sc1_updateOutput_kernel(float *input, float *output, int batch_s
 	int id = blockIdx.x * blockDim.x + threadIdx.x;
 	float input_reg[32];
 
+	if (id >= img_size)
+		return;
+
 	for (int batch = 0; batch < batch_size; batch++) {
 		for (int j = 0; j < num_input; j++) {
 			input_reg[j] = input[(batch * num_input + j) * img_size + id];
@@ -652,6 +655,7 @@ int add_bias4(lua_State *L)
 	return 0;
 }
 
+/*
 __global__ StereoJoin_updateOutput_kernel(
 
 int StereoJoin_updateOutput(lua_State *L)
@@ -683,6 +687,7 @@ int StereoJoin_updateOutput(lua_State *L)
 	checkCudaError(L);
 	return 0;
 }
+*/
 
 static const struct luaL_Reg funcs[] = {
 	{"add", add},
