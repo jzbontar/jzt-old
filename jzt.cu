@@ -689,7 +689,7 @@ int stereoJoin_updateOutput(lua_State *L)
 	int h = THCudaTensor_size(output, 2);
 	int w = THCudaTensor_size(output, 3);
 
-	const int block = 512;
+	const int block = 64;
 	const dim3 grid(h, (w - 1) / block + 1, num_output * bs);
 
 	StereoJoin_updateOutput_kernel<<<grid, block>>>(
