@@ -654,10 +654,26 @@ int add_bias4(lua_State *L)
 	return 0;
 }
 
-/*
-__global__ StereoJoin_updateOutput_kernel(
+__global__ void StereoJoin_updateOutput_kernel(float *left, float *right, float *output, int num_input, int num_output, int width, int img_size)
+{
+	int y = blockIdx.x;
+	int x = blockIdx.y * width + threadIdx.x;
+	int img_pos = y * width + x;
+	int n = blockIdx.z % num_output;
+	int bs = blockIdx.z / num_output;
 
-int StereoJoin_updateOutput(lua_State *L)
+	if (x < width) {
+		float d = 0;
+		for (int i = 0; i < num_input; i++) {
+			float r = x - n < 0 ? 0. : right[(bs * num_input + i) * img_size + img_pos - n];
+			float dd = left[(bs * num_input + i) * img_size + img_pos] - r;
+			d += dd * dd;
+		}
+		output[(bs * num_output + n) * img_size + img_pos] = d;
+	}
+}
+
+int stereoJoin_updateOutput(lua_State *L)
 {
 	THCudaTensor *left = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
 	THCudaTensor *right = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
@@ -667,26 +683,24 @@ int StereoJoin_updateOutput(lua_State *L)
 		luaL_error(L, "Matrix not in row major order");
 	}
 
-	int bs = THCudaTensor_size(output, 1);
-	int n = THCudaTensor_size(output, 2);
-	int h = THCudaTensor_size(output, 3);
-	int w = THCudaTensor_size(output, 4);
+	int num_input = THCudaTensor_size(left, 1);
+	int bs = THCudaTensor_size(output, 0);
+	int num_output = THCudaTensor_size(output, 1);
+	int h = THCudaTensor_size(output, 2);
+	int w = THCudaTensor_size(output, 3);
 
-	assert(h == 250 && w == 1224);
+	const int block = 512;
+	const dim3 grid(h, (w - 1) / block + 1, num_output * bs);
 
-	dim3 grid(250, 2, n * bs);
-
-	StereoJoin_updateOutput_kernel<<<grid, 640>>>(
+	StereoJoin_updateOutput_kernel<<<grid, block>>>(
 		THCudaTensor_data(left),
 		THCudaTensor_data(right),
 		THCudaTensor_data(output),
-		THCudaTensor_size(left, 2),
-		h * w);
+		num_input, num_output, w, h * w);
 
 	checkCudaError(L);
 	return 0;
 }
-*/
 
 static const struct luaL_Reg funcs[] = {
 	{"add", add},
@@ -711,6 +725,8 @@ static const struct luaL_Reg funcs[] = {
 	{"sc1_updateOutput", sc1_updateOutput},
 	{"sc1_accGradParameters", sc1_accGradParameters},
 	{"add_bias4", add_bias4},
+
+	{"stereoJoin_updateOutput", stereoJoin_updateOutput},
 
 	{NULL, NULL}
 };
