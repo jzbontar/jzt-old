@@ -12,17 +12,24 @@ end
 
 function StereoJoin:updateOutput(input)
    local batch_size = input:size(1) / 2
-   self.output:resize(batch_size, self.n, input:size(3), input:size(4))
-
    local left = input:narrow(1, 1, batch_size)
    local right = input:narrow(1, 1 + batch_size, batch_size)
+   self.output:resize(batch_size, self.n, input:size(3), input:size(4))
 
    jzt.stereoJoin_updateOutput(left, right, self.output)
    return self.output
 end
 
-function StereoJoin:updateGradInput(left, right, gradOutput)
+function StereoJoin:updateGradInput(input, gradOutput)
+   local batch_size = input:size(1) / 2
+   local left = input:narrow(1, 1, batch_size)
+   local right = input:narrow(1, 1 + batch_size, batch_size)
+
    self.gradInput:resizeAs(input)
-   self.gradInput:addmm(0, 1, gradOutput, self.weight)
+   self.gradInput:zero()
+   local leftGrad = self.gradInput:narrow(1, 1, batch_size)
+   local rightGrad = self.gradInput:narrow(1, 1 + batch_size, batch_size)
+
+   jzt.stereoJoin_updateGradInput(left, right, gradOutput, leftGrad, rightGrad)
    return self.gradInput
 end
