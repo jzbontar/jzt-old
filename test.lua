@@ -11,13 +11,6 @@ function test.Linear()
    print(testJacobianParameters(module, A))
 end
 
-function test.SpatialConvolution1()
-   A = torch.CudaTensor(4, 3, 5, 5):normal()
-   module = jzt.SpatialConvolution1(3, 1)
-
-   print(testJacobian(module, A))
-   print(testJacobianParameters(module, A))
-end
 
 function test.LinearTanh()
    A = torch.CudaTensor(5, 3):normal()
@@ -31,11 +24,19 @@ function test.LinearTanh()
    print(testJacobianParameters(net, A))
 end
 
-test = {}
 function test.StereoJoin()
    A = torch.CudaTensor(4, 3, 5, 5):normal()
    n = jzt.StereoJoin(4)
    print(testJacobian(n, A))
+end
+
+test = {}
+function test.SpatialConvolution1()
+   A = torch.CudaTensor(4, 3, 5, 5):normal()
+   module = jzt.SpatialConvolution1(3, 4)
+
+   print(testJacobian(module, A))
+   print(testJacobianParameters(module, A))
 end
 
 for k, v in pairs(test) do
