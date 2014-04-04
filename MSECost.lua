@@ -8,8 +8,8 @@ end
 function MSECost:updateOutput(input, target)
    self.gradInput:resizeAs(input)
    self.gradInput:add(input, -1, target)
-   self.output = 0.5 * self.gradInput:dot(self.gradInput)
-   return self.output
+--   self.output = 0.5 * self.gradInput:dot(self.gradInput)
+--   return self.output
 end
 
 function MSECost:updateGradInput(input, target)
