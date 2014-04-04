@@ -1,5 +1,6 @@
 require 'jzt'
 require 'Test'
+require 'prof-torch'
 
 test = {}
 function test.Linear()
