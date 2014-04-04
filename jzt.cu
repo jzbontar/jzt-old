@@ -529,13 +529,21 @@ int shrink2(lua_State *L)
 	return 0;
 }
 
-__constant__ float sc1_weight[32 * 16];
-
-__global__ void sc1_updateOutput_kernel(float *input, float *output, int img_size, int num_input, int num_output)
+__global__ void sc1_updateOutput_kernel(float *input, float *weight, int transpose_weight, float *output, int img_size, int num_input, int num_output)
 {
 	int id = blockIdx.x * blockDim.x + threadIdx.x;
 	int batch = blockIdx.y;
 	float input_reg[32];
+
+	__shared__ float weight_s[32 * 16];
+	for (int i = threadIdx.x; i < num_input * num_output; i += blockDim.x) {
+		if (transpose_weight) {
+			weight_s[(i % num_output) * num_input + (i / num_output)] = weight[i];
+		} else {
+			weight_s[i] = weight[i];
+		}
+	}
+	__syncthreads();
 
 	if (id < img_size) { 
 		for (int j = 0; j < num_input; j++) {
@@ -545,7 +553,7 @@ __global__ void sc1_updateOutput_kernel(float *input, float *output, int img_siz
 		for (int i = 0; i < num_output; i++) {
 			float s = 0;
 			for (int j = 0; j < num_input; j++) {
-				s += input_reg[j] * sc1_weight[i * num_input + j];
+				s += input_reg[j] * weight_s[i * num_input + j];
 			}
 			output[(batch * num_output + i) * img_size + id] = s;
 		}
@@ -556,22 +564,34 @@ int sc1_updateOutput(lua_State *L)
 {
 	THCudaTensor *input = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
 	THCudaTensor *weight = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
-	THCudaTensor *output = (THCudaTensor*)luaT_checkudata(L, 3, "torch.CudaTensor");
+	int transpose_weight = luaL_checkinteger(L, 3);
+	THCudaTensor *output = (THCudaTensor*)luaT_checkudata(L, 4, "torch.CudaTensor");
 
 	int batch_size = THCudaTensor_size(input, 0);
 	int img_size = THCudaTensor_size(input, 2) * THCudaTensor_size(input, 3);
-	int num_input = THCudaTensor_size(weight, 1);
-	int num_output = THCudaTensor_size(weight, 0);
+
+	int num_input, num_output;
+	if (transpose_weight) {
+		num_input = THCudaTensor_size(weight, 0);
+		num_output = THCudaTensor_size(weight, 1);
+	} else {
+		num_input = THCudaTensor_size(weight, 1);
+		num_output = THCudaTensor_size(weight, 0);
+	}
 
 	if (!is_rm(input) || !is_rm(weight) || !is_rm(output)) {
 		luaL_error(L, "Matrix not in row major order");
 	}
 
 	assert(num_input <= 32 && num_input * num_output <= 32 * 16);
-	cudaMemcpyToSymbol(sc1_weight, THCudaTensor_data(weight), num_input * num_output * sizeof(float), 0, cudaMemcpyDeviceToDevice);
 
 	dim3 grid((img_size - 1) / TB + 1, batch_size);
-	sc1_updateOutput_kernel<<<grid, TB>>>(THCudaTensor_data(input), THCudaTensor_data(output), img_size, num_input, num_output);
+	sc1_updateOutput_kernel<<<grid, TB>>>(
+		THCudaTensor_data(input), 
+		THCudaTensor_data(weight), 
+		transpose_weight,
+		THCudaTensor_data(output), 
+		img_size, num_input, num_output);
 
 	checkCudaError(L);
 	return 0;
@@ -778,6 +798,7 @@ int stereoJoin_updateGradInput(lua_State *L)
 	checkCudaError(L);
 	return 0;
 }
+
 
 static const struct luaL_Reg funcs[] = {
 	{"add", add},

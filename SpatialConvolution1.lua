@@ -7,6 +7,7 @@ function SpatialConvolution1:__init(inputSize, outputSize)
    self:cuda()
 
    self.weight = torch.CudaTensor(outputSize, inputSize)
+   self.weightGrad = torch.CudaTensor(inputSize, outputSize)
    self.gradWeight = torch.CudaTensor(outputSize, inputSize)
    self.bias = torch.CudaTensor(outputSize)
    self.gradBias = torch.CudaTensor(outputSize)
@@ -24,14 +25,14 @@ end
 
 function SpatialConvolution1:updateOutput(input)
    self.output:resize(input:size(1), self.weight:size(1), input:size(3), input:size(4))
-   jzt.sc1_updateOutput(input, self.weight, self.output)
+   jzt.sc1_updateOutput(input, self.weight, 0, self.output)
    jzt.add_bias4(self.output, self.bias)
    return self.output
 end
 
 function SpatialConvolution1:updateGradInput(input, gradOutput)
    self.gradInput:resizeAs(input)
-   jzt.sc1_updateOutput(gradOutput, self.weight:t():clone(), self.gradInput)
+   jzt.sc1_updateOutput(gradOutput, self.weight, 1, self.gradInput)
    return self.gradInput
 end
 
