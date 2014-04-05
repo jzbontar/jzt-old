@@ -1,6 +1,7 @@
-require 'jzt'
 require 'Test'
-require 'prof-torch'
+require 'jzt'
+require 'nn'
+require 'cunn'
 
 test = {}
 function test.Linear()
@@ -30,13 +31,33 @@ function test.StereoJoin()
    print(testJacobian(n, A))
 end
 
-test = {}
 function test.SpatialConvolution1()
    A = torch.CudaTensor(4, 3, 5, 5):normal()
    module = jzt.SpatialConvolution1(3, 4)
 
    print(testJacobian(module, A))
    print(testJacobianParameters(module, A))
+end
+
+test = {}
+function test.foo()
+   A = torch.CudaTensor(16, 1, 20, 30):normal()
+   B = torch.CudaTensor(16, 1, 20, 30):normal()
+   
+   net = nn.Sequential{bprop_min=2,timing=0,debug=0}
+   net:add(nn.SpatialZeroPadding(2, 2, 2, 2))
+   net:add(nn.SpatialConvolutionRing(1, 16, 5, 5))
+   net:add(jzt.Tanh())
+   net:add(jzt.StereoJoin(10))
+   net:add(jzt.SpatialConvolution1(10, 10))
+   net:add(jzt.Tanh())
+   net:add(jzt.SpatialConvolution1(10, 1))
+   net = net:cuda()
+
+   measure = nn.MSECriterion()
+   measure = measure:cuda()   
+
+   print(testNetworkParameters(net, measure, A, B))
 end
 
 for k, v in pairs(test) do
