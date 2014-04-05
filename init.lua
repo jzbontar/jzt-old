@@ -1,6 +1,6 @@
+require 'torch'
 require 'libjzt'
 require 'nn'
-require 'torch'
 require 'cutorch'
 
 include('util.lua')
