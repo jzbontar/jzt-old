@@ -535,7 +535,7 @@ __global__ void sc1_updateOutput_kernel(float *input, float *weight, int transpo
 	int batch = blockIdx.y;
 	float input_reg[32];
 
-	__shared__ float weight_s[32 * 16];
+	__shared__ float weight_s[32 * 32];
 	for (int i = threadIdx.x; i < num_input * num_output; i += blockDim.x) {
 		if (transpose_weight) {
 			weight_s[(i % num_output) * num_input + (i / num_output)] = weight[i];
@@ -583,7 +583,7 @@ int sc1_updateOutput(lua_State *L)
 		luaL_error(L, "Matrix not in row major order");
 	}
 
-	assert(num_input <= 32 && num_input * num_output <= 32 * 16);
+	assert(num_input <= 32 && num_input * num_output <= 32 * 32);
 
 	dim3 grid((img_size - 1) / TB + 1, batch_size);
 	sc1_updateOutput_kernel<<<grid, TB>>>(
@@ -599,8 +599,8 @@ int sc1_updateOutput(lua_State *L)
 
 __global__ void sc1_accGradParameters_kernel(float *input, float *grad_output, float *grad, int batch_size, int img_size, int num_input, int num_output)
 {
-	__shared__ float input_s[32 * 16];
-	__shared__ float grad_output_s[32 * 16];
+	__shared__ float input_s[32 * 32];
+	__shared__ float grad_output_s[32 * 32];
 
 	for (int i = threadIdx.y * blockDim.x + threadIdx.x; i < num_input * batch_size; i += blockDim.x * blockDim.y) {
 		input_s[i] = input[i * img_size + blockIdx.x];
@@ -635,7 +635,7 @@ int sc1_accGradParameters(lua_State *L)
 		luaL_error(L, "Matrix not in row major order");
 	}
 
-	assert(num_input <= 32 && batch_size <= 16 && num_input * num_output <= 32 * 16);
+	assert(num_input <= 32 && batch_size <= 32 && num_input * num_output <= 32 * 32);
 	dim3 block(num_output, num_input);
 	sc1_accGradParameters_kernel<<<img_size, block>>>(THCudaTensor_data(input), THCudaTensor_data(grad_output), THCudaTensor_data(grad), batch_size, img_size, num_input, num_output);
 
@@ -799,7 +799,6 @@ int stereoJoin_updateGradInput(lua_State *L)
 	return 0;
 }
 
-
 static const struct luaL_Reg funcs[] = {
 	{"add", add},
 	{"add_mat_vect", add_mat_vect},
@@ -830,7 +829,10 @@ static const struct luaL_Reg funcs[] = {
 	{NULL, NULL}
 };
 
+void cunn_SpatialLogSoftMax_init(lua_State *L);
+
 extern "C" int luaopen_libjzt(lua_State *L) {
 	luaL_openlib(L, "jzt", funcs, 0);
+	cunn_SpatialLogSoftMax_init(L);
 	return 1;
 }

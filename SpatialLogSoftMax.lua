@@ -1,4 +1,4 @@
-local SpatialLogSoftMax,parent = torch.class('nn.SpatialLogSoftMax', 'nn.Module')
+local SpatialLogSoftMax,parent = torch.class('jzt.SpatialLogSoftMax', 'nn.Module')
 
 function SpatialLogSoftMax:__init(constant)
    parent.__init(self)
@@ -12,9 +12,13 @@ function SpatialLogSoftMax:__init(constant)
 end
 
 function SpatialLogSoftMax:updateOutput(input)
-   return input.nn.SpatialLogSoftMax_updateOutput(self, input)
+   jzt.SpatialLogSoftMax_updateOutput(self, input)
+   self.output = input
+   return self.output
 end
 
 function SpatialLogSoftMax:updateGradInput(input, gradOutput)
-   return input.nn.SpatialLogSoftMax_updateGradInput(self, input, gradOutput)
+   jzt.SpatialLogSoftMax_updateGradInput(self, input, gradOutput)
+   self.gradInput = gradOutput
+   return self.gradInput
 end

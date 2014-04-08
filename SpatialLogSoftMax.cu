@@ -63,7 +63,7 @@ static int cunn_SpatialLogSoftMax_updateOutput(lua_State *L)
 		constant = expf(luaT_getfieldchecknumber(L, 1, "constant"));
 	}
   THCudaTensor *input = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
-  THCudaTensor *output = (THCudaTensor*)luaT_getfieldcheckudata(L, 1, "output", "torch.CudaTensor");
+//  THCudaTensor *output = (THCudaTensor*)luaT_getfieldcheckudata(L, 1, "output", "torch.CudaTensor");
   int nframe = 0, dim = 0, height = 1, width = 1;
 
   if (input->nDimension == 1) {
@@ -88,7 +88,7 @@ static int cunn_SpatialLogSoftMax_updateOutput(lua_State *L)
 
   // Get input and output
   input = THCudaTensor_newContiguous(input);
-  THCudaTensor_resizeAs(output, input);
+//  THCudaTensor_resizeAs(output, input);
 
   int spatial_size = width*height;
   int feature_size = dim*spatial_size;
@@ -103,7 +103,7 @@ static int cunn_SpatialLogSoftMax_updateOutput(lua_State *L)
   dim3 threads(SPATIALLOGSOFTMAX_THREADS,1,1);
 
   cunn_SpatialLogSoftMax_updateOutput_kernel<<<blocks,threads>>>
-		(THCudaTensor_data(output), THCudaTensor_data(input),
+		(THCudaTensor_data(input), THCudaTensor_data(input),
 		 feature_size, spatial_size, data_size, constant);
 
   cudaError errcode = cudaGetLastError();
@@ -118,7 +118,7 @@ static int cunn_SpatialLogSoftMax_updateGradInput(lua_State *L)
 {
   THCudaTensor *gradOutput = (THCudaTensor*)luaT_checkudata(L, 3, "torch.CudaTensor");
   THCudaTensor *output = (THCudaTensor*)luaT_getfieldcheckudata(L, 1, "output", "torch.CudaTensor");
-  THCudaTensor *gradInput = (THCudaTensor*)luaT_getfieldcheckudata(L, 1, "gradInput", "torch.CudaTensor");
+//  THCudaTensor *gradInput = (THCudaTensor*)luaT_getfieldcheckudata(L, 1, "gradInput", "torch.CudaTensor");
   int nframe = 0, dim = 0, height = 1, width = 1;
   
   if (output->nDimension == 1){
@@ -144,7 +144,7 @@ static int cunn_SpatialLogSoftMax_updateGradInput(lua_State *L)
   //Get the data
   output = THCudaTensor_newContiguous(output);
   gradOutput = THCudaTensor_newContiguous(gradOutput);
-  THCudaTensor_resizeAs(gradInput, output);
+//  THCudaTensor_resizeAs(gradInput, output);
 
   int spatial_size = width*height;
   int feature_size = dim*spatial_size;
@@ -158,7 +158,7 @@ static int cunn_SpatialLogSoftMax_updateGradInput(lua_State *L)
   dim3 blocks(nblocks,1,1);
   dim3 threads(SPATIALLOGSOFTMAX_THREADS,1,1);
 
-  cunn_SpatialLogSoftMax_updateGradInput_kernel<<<blocks,threads>>>(THCudaTensor_data(gradInput), 
+  cunn_SpatialLogSoftMax_updateGradInput_kernel<<<blocks,threads>>>(THCudaTensor_data(gradOutput), 
 								    THCudaTensor_data(output), 
 								    THCudaTensor_data(gradOutput),
 								    feature_size, spatial_size, data_size);
@@ -180,7 +180,5 @@ static const struct luaL_Reg cunn_SpatialLogSoftMax__ [] = {
 
 void cunn_SpatialLogSoftMax_init(lua_State *L)
 {
-  luaT_pushmetatable(L, "torch.CudaTensor");
-  luaT_registeratname(L, cunn_SpatialLogSoftMax__, "nn");
-  lua_pop(L,1);
+	luaL_openlib(L, "jzt", cunn_SpatialLogSoftMax__, 0);
 }
