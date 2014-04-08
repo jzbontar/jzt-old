@@ -12,8 +12,8 @@ function testJacobian(module, input, x, dx)
    local jacobian_hat = torch.Tensor(sx:nElement(), gradInput:nElement())
 
    -- Build Jacobian from module's updateGradInput
-   sgradInput:zero()
    for i = 1,gradInput:nElement() do
+      sgradInput:zero()
       sgradInput[i] = 1
       module:updateGradInput(input, gradInput)
       if dx then
@@ -23,7 +23,6 @@ function testJacobian(module, input, x, dx)
       else
          jacobian:select(2, i):copy(module.gradInput)
       end
-      sgradInput[i] = 0
    end
 
    -- Numerically estimate the Jacobian
