@@ -529,6 +529,57 @@ int shrink2(lua_State *L)
 	return 0;
 }
 
+__global__ void spatial_argmax_kernel(float *input, float *output, int size, int size1, int size23)
+{
+	int id = blockIdx.x * blockDim.x + threadIdx.x;
+	if (id < size) {
+		int dim23 = id % size23;
+		int dim0 = id / size23;
+
+		int argmax;
+		float max = -2e38;
+		for (int i = 0; i < size1; i++) {
+			float val = input[(dim0 * size1 + i) * size23 + dim23];
+			if (val > max) {
+				max = val;
+				argmax = i;
+			}
+		}
+		output[id] = argmax + 1;
+	}
+}
+
+int spatial_argmax(lua_State *L)
+{
+	THCudaTensor *input = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
+	THCudaTensor *output = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
+
+	if (!is_rm(input) && !is_rm(output)) {
+		luaL_error(L, "Matrix not in row major order");
+	}
+
+	if (input->nDimension != 4 || output->nDimension != 4) {
+		luaL_error(L, "Number of dimensions has to be 4");
+	}
+
+	if (THCudaTensor_size(input, 0) != THCudaTensor_size(output, 0) ||
+	  THCudaTensor_size(output, 1) != 1 ||
+	  THCudaTensor_size(input, 2) != THCudaTensor_size(output, 2) ||
+	  THCudaTensor_size(input, 3) != THCudaTensor_size(output, 3)) {
+		luaL_error(L, "Size mismatch");
+	}
+
+	int size = THCudaTensor_nElement(output);
+	spatial_argmax_kernel<<<(size - 1) / TB + 1, TB>>>(
+		THCudaTensor_data(input), 
+		THCudaTensor_data(output), 
+		size,
+		THCudaTensor_size(input, 1),
+		THCudaTensor_size(input, 2) * THCudaTensor_size(output, 3));
+	checkCudaError(L);
+	return 0;
+}
+
 __global__ void sc1_updateOutput_kernel(float *input, float *weight, int transpose_weight, float *output, int img_size, int num_input, int num_output)
 {
 	int id = blockIdx.x * blockDim.x + threadIdx.x;
@@ -818,6 +869,7 @@ static const struct luaL_Reg funcs[] = {
 	{"sum", sum},
 	{"smul", smul},
 	{"tanh", tanh},
+	{"spatial_argmax", spatial_argmax},
 
 	{"sc1_updateOutput", sc1_updateOutput},
 	{"sc1_accGradParameters", sc1_accGradParameters},
