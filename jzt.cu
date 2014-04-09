@@ -850,6 +850,24 @@ int stereoJoin_updateGradInput(lua_State *L)
 	return 0;
 }
 
+/* CPU implementation */
+int depth2disp(lua_State *L)
+{
+	THFloatTensor *input = (THFloatTensor*)luaT_checkudata(L, 1, "torch.FloatTensor");
+	THFloatTensor *output = (THFloatTensor*)luaT_checkudata(L, 2, "torch.FloatTensor");
+	float c = luaL_checknumber(L, 3);
+
+	float *input_p = THFloatTensor_data(input);
+	float *output_p = THFloatTensor_data(output);
+	int size = THFloatTensor_nElement(input);
+
+	for (int i = 0; i < size; i++) {
+		output_p[i] = input_p[i] == 0.0 ? 0.0 : c / input_p[i];
+	}
+
+	return 0;
+}
+
 static const struct luaL_Reg funcs[] = {
 	{"add", add},
 	{"add_mat_vect", add_mat_vect},
@@ -877,6 +895,8 @@ static const struct luaL_Reg funcs[] = {
 
 	{"stereoJoin_updateOutput", stereoJoin_updateOutput},
 	{"stereoJoin_updateGradInput", stereoJoin_updateGradInput},
+
+	{"depth2disp", depth2disp},
 
 	{NULL, NULL}
 };
