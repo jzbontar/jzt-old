@@ -12,7 +12,6 @@ function test.Linear()
    print(testJacobianParameters(module, A))
 end
 
-
 function test.LinearTanh()
    A = torch.CudaTensor(5, 3):normal()
 
@@ -39,10 +38,7 @@ function test.SpatialConvolution1()
    print(testJacobianParameters(module, A))
 end
 
-test = {}
 function test.SpatialLogSoftMax()
-   cutorch.manualSeed(42)
-
    A = torch.CudaTensor(4, 3, 4, 4):normal()
    
    net = nn.Sequential()
