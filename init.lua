@@ -10,7 +10,6 @@ include('Tanh.lua')
 include('SpatialConvolution1.lua')
 include('StereoJoin.lua')
 include('SpatialLogSoftMax.lua')
-include('SpatialClassNLLCriterion.lua')
 
 include('ClassNLLCriterion.lua')
 include('L1Cost.lua')
