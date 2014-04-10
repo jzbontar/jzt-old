@@ -854,15 +854,15 @@ int stereoJoin_updateGradInput(lua_State *L)
 int depth2disp(lua_State *L)
 {
 	THFloatTensor *input = (THFloatTensor*)luaT_checkudata(L, 1, "torch.FloatTensor");
-	THFloatTensor *output = (THFloatTensor*)luaT_checkudata(L, 2, "torch.FloatTensor");
-	float c = luaL_checknumber(L, 3);
+	float c = luaL_checknumber(L, 2);
 
 	float *input_p = THFloatTensor_data(input);
-	float *output_p = THFloatTensor_data(output);
 	int size = THFloatTensor_nElement(input);
 
 	for (int i = 0; i < size; i++) {
-		output_p[i] = input_p[i] == 0.0 ? 0.0 : c / input_p[i];
+		if (input_p[i] != 0.0) {
+			input_p[i] = c / input_p[i];
+		}
 	}
 
 	return 0;
