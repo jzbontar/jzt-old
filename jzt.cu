@@ -67,6 +67,15 @@ struct opMax {
 	}
 };
 
+struct opClip {
+	float low, high;
+	opClip(float low_, float high_) : low(low_), high(high_) {};
+	__device__ float operator()(float x)
+	{
+		return min(high, max(low, x));
+	}
+};
+
 struct opExp {
 public:
 	__device__ float operator()(float x)
@@ -289,6 +298,13 @@ int tanh(lua_State *L)
 int mult_by_tanh_deriv(lua_State *L)
 {
 	return transform2(opTanhDeriv(), L);
+}
+
+int clip(lua_State *L)
+{
+	float low = luaL_checknumber(L, 3);
+	float high = luaL_checknumber(L, 4);
+	return transform1(opClip(low, high), L);
 }
 
 int _exp(lua_State *L)
@@ -854,6 +870,7 @@ int depth2disp(lua_State *L)
 static const struct luaL_Reg funcs[] = {
 	{"add", add},
 	{"add_mat_vect", add_mat_vect},
+	{"clip", clip},
 	{"div_mat_vect", div_mat_vect},
 	{"exp", _exp},
 	{"get_cols", get_cols},
@@ -866,11 +883,11 @@ static const struct luaL_Reg funcs[] = {
 	{"set_cols", set_cols},
 	{"shrink", shrink},
 	{"sigmoid", sigmoid},
+	{"smul", smul},
+	{"spatial_argmax", spatial_argmax},
 	{"sub_mat_vect", sub_mat_vect},
 	{"sum", sum},
-	{"smul", smul},
 	{"tanh", tanh},
-	{"spatial_argmax", spatial_argmax},
 
 	{"sc1_updateOutput", sc1_updateOutput},
 	{"sc1_accGradParameters", sc1_accGradParameters},
