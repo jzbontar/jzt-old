@@ -16,10 +16,10 @@ function test.StereoJoin()
       cutorch.synchronize()
       prof.toc('f')
 
---      prof.tic('b')
---      n:updateGradInput(A, n.output)
---      cutorch.synchronize()
---      prof.toc('b')
+      prof.tic('b')
+      n:updateGradInput(A, n.output)
+      cutorch.synchronize()
+      prof.toc('b')
    end
 
    prof.dump()

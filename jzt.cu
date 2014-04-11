@@ -745,7 +745,7 @@ __global__ void stereoJoin_updateOutput_kernel(float *left, float *right, float 
 				d += dd * dd;	
 			}
 		}
-		output[((dim0 * size1_out + dim1) * size2 + dim2) * size3 + dim3] = d;
+		output[((dim0 * size1_out + dim1) * size2 + dim2) * size3 + dim3] = -d;
 	}
 }
 
@@ -792,7 +792,7 @@ __global__ void stereoJoin_updateGradInput_kernel(float *left, float *right, flo
 			float g = gradOutput[((dim0 * size1_in + i) * size2 + dim2) * size3 + dim3];
 			d += 2 * (l - r) * g;
 		}
-		leftGrad[((dim0 * size1_out + dim1) * size2 + dim2) * size3 + dim3] = d;
+		leftGrad[((dim0 * size1_out + dim1) * size2 + dim2) * size3 + dim3] = -d;
 
 		/* rightGrad */
 		d = 0.;
@@ -802,7 +802,7 @@ __global__ void stereoJoin_updateGradInput_kernel(float *left, float *right, flo
 			float g = gradOutput[((dim0 * size1_in + i) * size2 + dim2) * size3 + dim3 + i];
 			d += 2 * (r - l) * g;
 		}
-		rightGrad[((dim0 * size1_out + dim1) * size2 + dim2) * size3 + dim3] = d;
+		rightGrad[((dim0 * size1_out + dim1) * size2 + dim2) * size3 + dim3] = -d;
 	}
 }
 
