@@ -16,10 +16,10 @@ function test.StereoJoin()
       cutorch.synchronize()
       prof.toc('f')
 
-      prof.tic('b')
-      n:updateGradInput(A, n.output)
-      cutorch.synchronize()
-      prof.toc('b')
+--      prof.tic('b')
+--      n:updateGradInput(A, n.output)
+--      cutorch.synchronize()
+--      prof.toc('b')
    end
 
    prof.dump()
@@ -27,7 +27,6 @@ function test.StereoJoin()
    return
 end
 
-test = {}
 function test.SpatialConvolution1()
    A = torch.CudaTensor(16, 16, 250, 1224):normal()
    net = jzt.SpatialConvolution1(16, 16)
@@ -45,7 +44,4 @@ function test.SpatialConvolution1()
    print(prof.toc())
 end
 
-for k, v in pairs(test) do
-   print('Testing ' .. k)
-   v()
-end
+test.StereoJoin()

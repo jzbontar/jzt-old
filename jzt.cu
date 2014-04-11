@@ -725,22 +725,27 @@ int add_bias4(lua_State *L)
 	return 0;
 }
 
-__global__ void stereoJoin_updateOutput_kernel(float *left, float *right, float *output, int num_input, int num_output, int width, int img_size)
+__global__ void stereoJoin_updateOutput_kernel(float *left, float *right, float *output, int size_out, int size1_out, int size2, int size3, int size1_in)
 {
-	int y = blockIdx.x;
-	int x = blockIdx.y * width + threadIdx.x;
-	int img_pos = y * width + x;
-	int n = blockIdx.z % num_output;
-	int bs = blockIdx.z / num_output;
+	int id = blockIdx.x * blockDim.x + threadIdx.x;
+	if (id < size_out) {
+		int dim3 = id % size3;
+		id /= size3;
+		int dim2 = id % size2;
+		id /= size2;
+		int dim1 = id % size1_out;
+		int dim0 = id / size1_out;
 
-	if (x < width) {
 		float d = 0;
-		for (int i = 0; i < num_input; i++) {
-			float r = x - n < 0 ? 0. : right[(bs * num_input + i) * img_size + img_pos - n];
-			float dd = left[(bs * num_input + i) * img_size + img_pos] - r;
-			d += dd * dd;
+		if (dim3 >= dim1) {	
+			for (int i = 0; i < size1_in; i++) {
+				float l = left[((dim0 * size1_in + i) * size2 + dim2) * size3 + dim3];
+				float r = right[((dim0 * size1_in + i) * size2 + dim2) * size3 + dim3 - dim1];
+				float dd = l - r;
+				d += dd * dd;	
+			}
 		}
-		output[(bs * num_output + n) * img_size + img_pos] = d;
+		output[((dim0 * size1_out + dim1) * size2 + dim2) * size3 + dim3] = d;
 	}
 }
 
@@ -754,20 +759,15 @@ int stereoJoin_updateOutput(lua_State *L)
 		luaL_error(L, "Matrix not in row major order");
 	}
 
-	int num_input = THCudaTensor_size(left, 1);
-	int bs = THCudaTensor_size(output, 0);
-	int num_output = THCudaTensor_size(output, 1);
-	int h = THCudaTensor_size(output, 2);
-	int w = THCudaTensor_size(output, 3);
-
-	const int block = 64;
-	const dim3 grid(h, (w - 1) / block + 1, num_output * bs);
-
-	stereoJoin_updateOutput_kernel<<<grid, block>>>(
+	stereoJoin_updateOutput_kernel<<<(THCudaTensor_nElement(output) - 1) / TB + 1, TB>>>(
 		THCudaTensor_data(left),
 		THCudaTensor_data(right),
 		THCudaTensor_data(output),
-		num_input, num_output, w, h * w);
+		THCudaTensor_nElement(output),
+		THCudaTensor_size(output, 1),
+		THCudaTensor_size(output, 2),
+		THCudaTensor_size(output, 3),
+		THCudaTensor_size(left, 1));
 
 	checkCudaError(L);
 	return 0;
