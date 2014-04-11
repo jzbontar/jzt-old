@@ -24,12 +24,6 @@ function test.LinearTanh()
    print(testJacobianParameters(net, A))
 end
 
-function test.StereoJoin()
-   A = torch.CudaTensor(4, 3, 5, 5):normal()
-   n = jzt.StereoJoin(4)
-   print(testJacobian(n, A))
-end
-
 function test.SpatialConvolution1()
    A = torch.CudaTensor(4, 3, 5, 5):normal()
    module = jzt.SpatialConvolution1(3, 4)
@@ -48,6 +42,13 @@ function test.SpatialLogSoftMax()
    
    print(testJacobian(net, A))
    print(testJacobianParameters(net, A))
+end
+
+test = {}
+function test.StereoJoin()
+   A = torch.CudaTensor(6, 8, 4, 12):normal()
+   n = jzt.StereoJoin(3)
+   print(testJacobian(n, A))
 end
 
 for k, v in pairs(test) do

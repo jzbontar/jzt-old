@@ -773,41 +773,36 @@ int stereoJoin_updateOutput(lua_State *L)
 	return 0;
 }
 
-__global__ void stereoJoin_updateGradInput_left_kernel(float *left, float *right, float *gradOutput, float *leftGrad, int num_channels, int num_output, int width, int img_size)
+__global__ void stereoJoin_updateGradInput_kernel(float *left, float *right, float *gradOutput, float *leftGrad, float *rightGrad, int size_out, int size1_out, int size2, int size3, int size1_in)
 {
-	int y = blockIdx.x;
-	int x = blockIdx.y * width + threadIdx.x;
-	int img_pos = y * width + x;
-	int channel = blockIdx.z % num_channels;
-	int bs = blockIdx.z / num_channels;
+	int id = blockIdx.x * blockDim.x + threadIdx.x;
+	if (id < size_out) {
+		int dim3 = id % size3;
+		id /= size3;
+		int dim2 = id % size2;
+		id /= size2;
+		int dim1 = id % size1_out;
+		int dim0 = id / size1_out;
 
-	if (x < width) {
-		float d = 0;
-		for (int i = 0; i < num_output; i++) {
-			float r = x - i < 0 ? 0. : right[(bs * num_channels + channel) * img_size + img_pos - i];
-			float l = left[(bs * num_channels + channel) * img_size + img_pos];
-			d += (l - r) * gradOutput[(bs * num_output + i) * img_size + img_pos];
+		/* leftGrad */ 
+		float d = 0.;
+		float l = left[((dim0 * size1_out + dim1) * size2 + dim2) * size3 + dim3];
+		for (int i = 0; i < size1_in && dim3 - i >= 0; i++) {
+			float r = right[((dim0 * size1_out + dim1) * size2 + dim2) * size3 + dim3 - i];
+			float g = gradOutput[((dim0 * size1_in + i) * size2 + dim2) * size3 + dim3];
+			d += 2 * (l - r) * g;
 		}
-		leftGrad[(bs * num_channels + channel) * img_size + img_pos] = 2 * d;
-	}
-}
+		leftGrad[((dim0 * size1_out + dim1) * size2 + dim2) * size3 + dim3] = d;
 
-__global__ void stereoJoin_updateGradInput_right_kernel(float *left, float *right, float *gradOutput, float *rightGrad, int num_channels, int num_output, int width, int img_size)
-{
-	int y = blockIdx.x;
-	int x = blockIdx.y * width + threadIdx.x;
-	int img_pos = y * width + x;
-	int channel = blockIdx.z % num_channels;
-	int bs = blockIdx.z / num_channels;
-
-	if (x < width) {
-		float d = 0;
-		for (int i = 0; i < num_output && x + i < width; i++) {
-			float r = right[(bs * num_channels + channel) * img_size + img_pos];
-			float l = left[(bs * num_channels + channel) * img_size + img_pos + i];
-			d += (r - l) * gradOutput[(bs * num_output + i) * img_size + img_pos + i];
+		/* rightGrad */
+		d = 0.;
+		float r = right[((dim0 * size1_out + dim1) * size2 + dim2) * size3 + dim3];
+		for (int i = 0; i < size1_in && dim3 + i < size3; i++) {
+			float l = left[((dim0 * size1_out + dim1) * size2 + dim2) * size3 + dim3 + i];
+			float g = gradOutput[((dim0 * size1_in + i) * size2 + dim2) * size3 + dim3 + i];
+			d += 2 * (r - l) * g;
 		}
-		rightGrad[(bs * num_channels + channel) * img_size + img_pos] = 2 * d;
+		rightGrad[((dim0 * size1_out + dim1) * size2 + dim2) * size3 + dim3] = d;
 	}
 }
 
@@ -823,29 +818,17 @@ int stereoJoin_updateGradInput(lua_State *L)
 		luaL_error(L, "Matrix not in row major order");
 	}
 
-	int bs = THCudaTensor_size(left, 0);
-	int num_channels = THCudaTensor_size(left, 1);
-	int h = THCudaTensor_size(left, 2);
-	int w = THCudaTensor_size(left, 3);
-	int num_output = THCudaTensor_size(gradOutput, 1);
-
-	const int block = 64;
-	const dim3 grid(h, (w - 1) / block + 1, num_channels * bs);
-
-	stereoJoin_updateGradInput_left_kernel<<<grid, block>>>(
+	stereoJoin_updateGradInput_kernel<<<(THCudaTensor_nElement(left) - 1) / TB + 1, TB>>>(
 		THCudaTensor_data(left),
 		THCudaTensor_data(right),
 		THCudaTensor_data(gradOutput),
 		THCudaTensor_data(leftGrad),
-		num_channels, num_output, w, h * w);
-
-	stereoJoin_updateGradInput_right_kernel<<<grid, block>>>(
-		THCudaTensor_data(left),
-		THCudaTensor_data(right),
-		THCudaTensor_data(gradOutput),
 		THCudaTensor_data(rightGrad),
-		num_channels, num_output, w, h * w);
-
+		THCudaTensor_nElement(left),
+		THCudaTensor_size(left, 1),
+		THCudaTensor_size(left, 2),
+		THCudaTensor_size(left, 3),
+		THCudaTensor_size(gradOutput, 1));
 	checkCudaError(L);
 	return 0;
 }
