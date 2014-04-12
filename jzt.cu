@@ -867,7 +867,59 @@ int depth2disp(lua_State *L)
 	return 0;
 }
 
+/* CPU implementation */
+int grey2jet(lua_State *L)
+{
+	THDoubleTensor *grey_img = (THDoubleTensor*)luaT_checkudata(L, 1, "torch.DoubleTensor");
+	THDoubleTensor *jet_img = (THDoubleTensor*)luaT_checkudata(L, 2, "torch.DoubleTensor");
+
+	assert(grey_img->nDimension == 4);
+	int height = THDoubleTensor_size(grey_img, 2);
+	int width = THDoubleTensor_size(grey_img, 3);
+
+	double *gray_data = THDoubleTensor_data(grey_img);
+	double *jet_data = THDoubleTensor_data(jet_img);
+
+	for (int i = 0; i < height; i++) {
+		for (int j = 0; j < width; j++) {
+			double val = gray_data[i * width + j] * 4;
+			double r = 0, g = 0, b = 0;
+
+			if (0 <= val && val < 0.5) {
+				r = 0;
+				g = 0;
+				b = 0.5 + val;
+			} else if (0.5 <= val && val < 1.5) {
+				r = 0;
+				g = val - 0.5;
+				b = 1;
+			} else if (1.5 <= val && val < 2.5) {
+				r = val - 1.5;
+				g = 1;
+				b = 1 - (val - 1.5);
+			} else if (2.5 <= val && val < 3.5) {
+				r = 1;
+				g = 1 - (val - 2.5);
+				b = 0;
+			} else if (3.5 <= val && val <= 4) {
+				r = 1 - (val - 3.5);
+				g = 0;
+				b = 0;
+			} else {
+				assert(0);
+			}
+
+			jet_data[(0 * height + i) * width + j] = r;
+			jet_data[(1 * height + i) * width + j] = g;
+			jet_data[(2 * height + i) * width + j] = b;
+		}
+	}
+	return 0;
+}
+
 static const struct luaL_Reg funcs[] = {
+	{"grey2jet", grey2jet},
+
 	{"add", add},
 	{"add_mat_vect", add_mat_vect},
 	{"clip", clip},
