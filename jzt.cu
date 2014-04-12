@@ -871,14 +871,18 @@ int depth2disp(lua_State *L)
 int grey2jet(lua_State *L)
 {
 	THDoubleTensor *grey_img = (THDoubleTensor*)luaT_checkudata(L, 1, "torch.DoubleTensor");
-	THDoubleTensor *jet_img = (THDoubleTensor*)luaT_checkudata(L, 2, "torch.DoubleTensor");
+	THDoubleTensor *col_img = (THDoubleTensor*)luaT_checkudata(L, 2, "torch.DoubleTensor");
 
 	assert(grey_img->nDimension == 4);
+	if (3 * THDoubleTensor_nElement(grey_img) != THDoubleTensor_nElement(col_img)) {
+		luaL_error(L, "Size mismatch");
+	}
+
 	int height = THDoubleTensor_size(grey_img, 2);
 	int width = THDoubleTensor_size(grey_img, 3);
 
 	double *gray_data = THDoubleTensor_data(grey_img);
-	double *jet_data = THDoubleTensor_data(jet_img);
+	double *col_data = THDoubleTensor_data(col_img);
 
 	for (int i = 0; i < height; i++) {
 		for (int j = 0; j < width; j++) {
@@ -909,9 +913,9 @@ int grey2jet(lua_State *L)
 				assert(0);
 			}
 
-			jet_data[(0 * height + i) * width + j] = r;
-			jet_data[(1 * height + i) * width + j] = g;
-			jet_data[(2 * height + i) * width + j] = b;
+			col_data[(0 * height + i) * width + j] = r;
+			col_data[(1 * height + i) * width + j] = g;
+			col_data[(2 * height + i) * width + j] = b;
 		}
 	}
 	return 0;
