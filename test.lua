@@ -44,11 +44,23 @@ function test.SpatialLogSoftMax()
    print(testJacobianParameters(net, A))
 end
 
-test = {}
 function test.StereoJoin()
    A = torch.CudaTensor(6, 8, 4, 12):normal()
    n = jzt.StereoJoin(3)
    print(testJacobian(n, A))
+end
+
+test = {}
+function test.LinearRelu()
+   A = torch.CudaTensor(5, 3):normal()
+
+   net = nn.Sequential()
+   net:add(jzt.Linear(3, 4))
+   net:add(jzt.Relu())
+   net = net:cuda()
+
+   print(testJacobian(net, A))
+   print(testJacobianParameters(net, A))
 end
 
 for k, v in pairs(test) do

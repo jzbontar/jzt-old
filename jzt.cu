@@ -77,7 +77,6 @@ struct opClip {
 };
 
 struct opExp {
-public:
 	__device__ float operator()(float x)
 	{
 		return exp(x);
@@ -85,7 +84,6 @@ public:
 };
 
 struct opSigmoid {
-public:
 	__device__ float operator()(float x)
 	{
 		return 1 / (1 + exp(-x));
@@ -93,7 +91,6 @@ public:
 };
 
 struct opSigmoidDeriv {
-public:
 	__device__ float operator()(float x, float y)
 	{
 		return x * y * (1 - y);
@@ -101,7 +98,6 @@ public:
 };
 
 struct opTanh {
-public:
 	__device__ float operator()(float x)
 	{
 		return tanh(x);
@@ -109,10 +105,23 @@ public:
 };
 
 struct opTanhDeriv {
-public:
 	__device__ float operator()(float x, float y)
 	{
 		return x * (1 - y * y);
+	}
+};
+
+struct opRelu {
+	__device__ float operator()(float x)
+	{
+		return max(x, 0.f);
+	}
+};
+
+struct opReluDeriv {
+	__device__ float operator()(float x, float y)
+	{
+		return y > 0 ? x : 0;
 	}
 };
 
@@ -298,6 +307,16 @@ int tanh(lua_State *L)
 int mult_by_tanh_deriv(lua_State *L)
 {
 	return transform2(opTanhDeriv(), L);
+}
+
+int relu(lua_State *L)
+{
+	return transform1(opRelu(), L);
+}
+
+int mult_by_relu_deriv(lua_State *L)
+{
+	return transform2(opReluDeriv(), L);
 }
 
 int clip(lua_State *L)
@@ -873,13 +892,13 @@ int grey2jet(lua_State *L)
 	THDoubleTensor *grey_img = (THDoubleTensor*)luaT_checkudata(L, 1, "torch.DoubleTensor");
 	THDoubleTensor *col_img = (THDoubleTensor*)luaT_checkudata(L, 2, "torch.DoubleTensor");
 
-	assert(grey_img->nDimension == 4);
+	assert(grey_img->nDimension == 2);
 	if (3 * THDoubleTensor_nElement(grey_img) != THDoubleTensor_nElement(col_img)) {
 		luaL_error(L, "Size mismatch");
 	}
 
-	int height = THDoubleTensor_size(grey_img, 2);
-	int width = THDoubleTensor_size(grey_img, 3);
+	int height = THDoubleTensor_size(grey_img, 0);
+	int width = THDoubleTensor_size(grey_img, 1);
 
 	double *gray_data = THDoubleTensor_data(grey_img);
 	double *col_data = THDoubleTensor_data(col_img);
@@ -922,8 +941,6 @@ int grey2jet(lua_State *L)
 }
 
 static const struct luaL_Reg funcs[] = {
-	{"grey2jet", grey2jet},
-
 	{"add", add},
 	{"add_mat_vect", add_mat_vect},
 	{"clip", clip},
@@ -933,9 +950,11 @@ static const struct luaL_Reg funcs[] = {
 	{"huber", huber},
 	{"huber_deriv", huber_deriv},
 	{"max", _max},
+	{"mult_by_relu_deriv", mult_by_relu_deriv},
 	{"mult_by_sigmoid_deriv", mult_by_sigmoid_deriv},
 	{"mult_by_tanh_deriv", mult_by_tanh_deriv},
 	{"mult_mat_vect", mult_mat_vect},
+	{"relu", relu},
 	{"set_cols", set_cols},
 	{"shrink", shrink},
 	{"sigmoid", sigmoid},
@@ -953,6 +972,7 @@ static const struct luaL_Reg funcs[] = {
 	{"stereoJoin_updateGradInput", stereoJoin_updateGradInput},
 
 	{"depth2disp", depth2disp},
+	{"grey2jet", grey2jet},
 
 	{NULL, NULL}
 };
