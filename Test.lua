@@ -1,7 +1,7 @@
 eps = 1e-3
 
 function testJacobian(module, input, x, dx)
-   module:forward(input)
+   module:forward(input:clone())
 
    x = x or input
 
@@ -29,11 +29,11 @@ function testJacobian(module, input, x, dx)
    for i = 1,sx:nElement() do
       orig = sx[i]
       sx[i] = orig + eps
-      module:forward(input)
+      module:forward(input:clone())
       local f1 = module.output:clone()
 
       sx[i] = orig - eps
-      module:forward(input)
+      module:forward(input:clone())
       local f2 = module.output:clone()
 
       jacobian_hat:select(1, i):copy(f1:add(-1, f2):div(2 * eps))
