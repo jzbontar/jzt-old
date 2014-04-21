@@ -50,7 +50,6 @@ function test.StereoJoin()
    print(testJacobian(n, A))
 end
 
-test = {}
 function test.LinearRelu()
    A = torch.CudaTensor(5, 3):normal()
 
@@ -59,6 +58,15 @@ function test.LinearRelu()
    net:add(jzt.Relu())
    net = net:cuda()
 
+   print(testJacobian(net, A))
+   print(testJacobianParameters(net, A))
+end
+
+test = {}
+function test.SpatialBias()
+   A = torch.CudaTensor(5, 3):normal()
+
+   net = jzt.SpatialBias()
    print(testJacobian(net, A))
    print(testJacobianParameters(net, A))
 end

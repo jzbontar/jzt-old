@@ -10,6 +10,7 @@ include('Relu.lua')
 include('SpatialConvolution1.lua')
 include('SpatialLogSoftMax.lua')
 include('StereoJoin.lua')
+include('SpatialBias.lua')
 include('Tanh.lua')
 
 include('ClassNLLCriterion.lua')

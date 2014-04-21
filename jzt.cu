@@ -908,7 +908,7 @@ int grey2jet(lua_State *L)
 			double val = gray_data[i * width + j] * 4;
 			double r = 0, g = 0, b = 0;
 
-			if (0 <= val && val < 0.5) {
+			if (-0.1 <= val && val < 0.5) {
 				r = 0;
 				g = 0;
 				b = 0.5 + val;
@@ -924,11 +924,12 @@ int grey2jet(lua_State *L)
 				r = 1;
 				g = 1 - (val - 2.5);
 				b = 0;
-			} else if (3.5 <= val && val <= 4) {
+			} else if (3.5 <= val && val <= 4.1) {
 				r = 1 - (val - 3.5);
 				g = 0;
 				b = 0;
 			} else {
+				printf("val = %f\n", val);
 				assert(0);
 			}
 
