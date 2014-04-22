@@ -64,9 +64,9 @@ end
 
 test = {}
 function test.SpatialBias()
-   A = torch.CudaTensor(5, 3):normal()
+   A = torch.CudaTensor(1, 5, 3):normal()
 
-   net = jzt.SpatialBias()
+   net = jzt.SpatialBias(1, 5, 3)
    print(testJacobian(net, A))
    print(testJacobianParameters(net, A))
 end
