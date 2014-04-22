@@ -771,14 +771,17 @@ __global__ void stereoJoin_updateOutput_kernel(float *left, float *right, float 
 		int dim1 = id % size1_out;
 		int dim0 = id / size1_out;
 
-		float d = 0;
+		float d;
 		if (dim3 >= dim1) {	
+			d = 0;
 			for (int i = 0; i < size1_in; i++) {
 				float l = left[((dim0 * size1_in + i) * size2 + dim2) * size3 + dim3];
 				float r = right[((dim0 * size1_in + i) * size2 + dim2) * size3 + dim3 - dim1];
 				float dd = l - r;
 				d += dd * dd;	
 			}
+		} else {
+			d = 2e38;
 		}
 		output[((dim0 * size1_out + dim1) * size2 + dim2) * size3 + dim3] = -d;
 	}

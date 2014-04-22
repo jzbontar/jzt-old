@@ -44,12 +44,6 @@ function test.SpatialLogSoftMax()
    print(testJacobianParameters(net, A))
 end
 
-function test.StereoJoin()
-   A = torch.CudaTensor(6, 8, 4, 12):normal()
-   n = jzt.StereoJoin(3)
-   print(testJacobian(n, A))
-end
-
 function test.LinearRelu()
    A = torch.CudaTensor(5, 3):normal()
 
@@ -62,7 +56,6 @@ function test.LinearRelu()
    print(testJacobianParameters(net, A))
 end
 
-test = {}
 function test.SpatialBias()
    A = torch.CudaTensor(1, 5, 3):normal()
 
@@ -70,6 +63,14 @@ function test.SpatialBias()
    print(testJacobian(net, A))
    print(testJacobianParameters(net, A))
 end
+
+test = {}
+function test.StereoJoin()
+   A = torch.CudaTensor(6, 8, 4, 12):normal()
+   n = jzt.StereoJoin(3)
+   print(testJacobian(n, A))
+end
+
 
 for k, v in pairs(test) do
    print('Testing ' .. k)
