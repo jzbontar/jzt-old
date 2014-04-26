@@ -967,7 +967,8 @@ __global__ void L2Pooling_updateOutput_kernel(float *input, float *output, int k
 	}
 }
 
-int L2Pooling_updateOutput(lua_State *L) {
+int L2Pooling_updateOutput(lua_State *L) 
+{
 	THCudaTensor *input = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
 	THCudaTensor *output = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
 	int ksize = luaL_checkinteger(L, 3);
@@ -999,6 +1000,18 @@ int L2Pooling_updateOutput(lua_State *L) {
 		ksize, stride, width, height, pooled_width, pooled_height);
 	
 	return 0;
+}
+
+int L2Pooling_updateGradInput(lua_State *L)
+{
+	THCudaTensor *input = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
+	THCudaTensor *output = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
+	THCudaTensor *gradOutput = (THCudaTensor*)luaT_checkudata(L, 3, "torch.CudaTensor");
+	THCudaTensor *gradInput = (THCudaTensor*)luaT_checkudata(L, 4, "torch.CudaTensor");
+
+	L2Pooling_updateGradInput_kernel<<<(THCudaTensor_nElement(gradInput) - 1) / TB + 1, TB>>>(
+		
+	);
 }
 
 static const struct luaL_Reg funcs[] = {
