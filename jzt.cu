@@ -944,6 +944,56 @@ int grey2jet(lua_State *L)
 	return 0;
 }
 
+__global__ void L2Pooling_updateOutput_kernel(float *input, float *output, int ksize, int stride, int width, int height)
+{
+	int row = (blockIdx.x * blockDim.x + threadIdx.x) * stride;
+	int col = (blockIdx.y * blockDim.y + threadIdx.y) * stride;
+	int img_offset = blockIdx.z * width * height;
+
+	int val = 0;
+	for (int i = 0; i < ksize; i++) {
+		for (int j = 0; j < ksize; j++) {
+			float d = input[img_offset + (row + i) * width + (col + j)];
+			val += d * d;
+		}
+	}
+	output[img_offset + row * blockDim.y + col] = sqrtf(val);
+}
+
+int L2Pooling_updateOutput(lua_State *L) {
+	THCudaTensor *input = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
+	THCudaTensor *output = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
+	int ksize = luaL_checkinteger(L, 3);
+	int stride = luaL_checkinteger(L, 4);
+
+	int batch_size = THCudaTensor_size(input, 0);
+	int img_size = THCudaTensor_size(input, 2) * THCudaTensor_size(input, 3);
+
+	if (!is_rm(input) || !is_rm(output)) {
+		luaL_error(L, "Matrix not in row major order");
+	}
+
+	const int height = THCudaTensor_size(input, 2);
+	const int width = THCudaTensor_size(input, 3);
+
+	const int pooled_height = ceil((float)(height - ksize) / stride) + 1;
+	const int pooled_width = ceil((float)(width - ksize) / stride) + 1;
+
+	assert(THCudaTensor_size(output, 2) == pooled_height);
+	assert(THCudaTensor_size(output, 3) == pooled_width);
+
+	const int tb = 16;
+	const dim3 block(tb, tb);
+	const dim3 grid(pooled_height, pooled_width, THCudaTensor_size(input, 0) * THCudaTensor_size(input, 1));
+
+	L2Pooling_updateOutput_kernel<<<block, grid>>>(
+		THCudaTensor_data(input), 
+		THCudaTensor_data(output), 
+		ksize, stride, width, height);
+	
+	return 0;
+}
+
 static const struct luaL_Reg funcs[] = {
 	{"add", add},
 	{"add_mat_vect", add_mat_vect},
@@ -971,6 +1021,8 @@ static const struct luaL_Reg funcs[] = {
 	{"sc1_updateOutput", sc1_updateOutput},
 	{"sc1_accGradParameters", sc1_accGradParameters},
 	{"add_bias4", add_bias4},
+
+	{"L2Pooling_updateOutput", L2Pooling_updateOutput},
 
 	{"stereoJoin_updateOutput", stereoJoin_updateOutput},
 	{"stereoJoin_updateGradInput", stereoJoin_updateGradInput},

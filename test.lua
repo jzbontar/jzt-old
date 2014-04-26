@@ -64,11 +64,19 @@ function test.SpatialBias()
    print(testJacobianParameters(net, A))
 end
 
-test = {}
 function test.StereoJoin()
    A = torch.CudaTensor(6, 8, 4, 12):normal()
    n = jzt.StereoJoin(3)
    print(testJacobian(n, A))
+end
+
+test = {}
+function test.L2Pooling()
+   A = torch.CudaTensor(2, 2, 4, 4):normal()
+   B = torch.CudaTensor(2, 2, 2, 2):normal()
+
+   jzt.L2Pooling_updateOutput(A, B, 2, 2)
+
 end
 
 

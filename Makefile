@@ -8,7 +8,7 @@ OBJ = jzt.o SpatialLogSoftMax.o
 	nvcc -arch sm_35 --compiler-options '-fPIC' -c $(CFLAGS) $<
 
 libjzt.so: ${OBJ}
-	nvcc -o libjzt.so --shared ${OBJ} $(LDFLAGS)
+	nvcc -arch sm_35 -o libjzt.so --shared ${OBJ} $(LDFLAGS)
 
 install: libjzt.so
 	ln -s /home/jure/torch/jzt/libjzt.so /home/jure/build/torch/installed/lib/torch/lua/
