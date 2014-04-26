@@ -944,18 +944,19 @@ int grey2jet(lua_State *L)
 	return 0;
 }
 
-__global__ void L2Pooling_updateOutput_kernel(float *input, float *output, int ksize, int stride, int width, int height, int pooled_width, int pooled_height)
+__global__ void L2Pooling_updateOutput_kernel(float *input, float *output, int ksize, int stride, int size, int width, int height, int pooled_width, int pooled_height)
 {
-	const int row_out = blockIdx.x * blockDim.x + threadIdx.x;
-	const int col_out = blockIdx.y * blockDim.y + threadIdx.y;
+	int id = blockIdx.x * blockDim.x + threadIdx.x;
+	int dim01 = id;
+	const int col_out = dim01 % pooled_width;
+	dim01 /= pooled_width;
+	const int row_out = dim01 % pooled_height;
+	dim01 /= pooled_height;
 
-	if (row_out < pooled_height && col_out < pooled_width) {
+	if (id < size) {
 		const int row_in = row_out * stride;
 		const int col_in = col_out * stride;
-
-		const int offset_in = blockIdx.z * width * height;
-		const int offset_out = blockIdx.z * pooled_width * pooled_height;
-
+		const int offset_in = dim01 * width * height;
 		float val = 0;
 		for (int i = 0; i < ksize; i++) {
 			for (int j = 0; j < ksize; j++) {
@@ -963,7 +964,7 @@ __global__ void L2Pooling_updateOutput_kernel(float *input, float *output, int k
 				val += d * d;
 			}
 		}
-		output[offset_out + row_out * pooled_width + col_out] = sqrtf(val);
+		output[id] = sqrtf(val);
 	}
 }
 
@@ -990,14 +991,10 @@ int L2Pooling_updateOutput(lua_State *L)
 	assert(THCudaTensor_size(output, 2) == pooled_height);
 	assert(THCudaTensor_size(output, 3) == pooled_width);
 
-	const int tb = 8;
-	const dim3 block(tb, tb);
-	const dim3 grid((pooled_height - 1) / tb + 1, (pooled_width - 1) / tb + 1, THCudaTensor_size(input, 0) * THCudaTensor_size(input, 1));
-
-	L2Pooling_updateOutput_kernel<<<grid, block>>>(
+	L2Pooling_updateOutput_kernel<<<(THCudaTensor_nElement(output) - 1) / TB + 1, TB>>>(
 		THCudaTensor_data(input), 
 		THCudaTensor_data(output), 
-		ksize, stride, width, height, pooled_width, pooled_height);
+		ksize, stride, THCudaTensor_nElement(output), width, height, pooled_width, pooled_height);
 	
 	return 0;
 }
@@ -1009,9 +1006,11 @@ int L2Pooling_updateGradInput(lua_State *L)
 	THCudaTensor *gradOutput = (THCudaTensor*)luaT_checkudata(L, 3, "torch.CudaTensor");
 	THCudaTensor *gradInput = (THCudaTensor*)luaT_checkudata(L, 4, "torch.CudaTensor");
 
+/*
 	L2Pooling_updateGradInput_kernel<<<(THCudaTensor_nElement(gradInput) - 1) / TB + 1, TB>>>(
-		
 	);
+*/
+	return 0;
 }
 
 static const struct luaL_Reg funcs[] = {
