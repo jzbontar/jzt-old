@@ -989,7 +989,7 @@ int L2Pooling_updateOutput(lua_State *L) {
 	assert(THCudaTensor_size(output, 2) == pooled_height);
 	assert(THCudaTensor_size(output, 3) == pooled_width);
 
-	const int tb = 16;
+	const int tb = 8;
 	const dim3 block(tb, tb);
 	const dim3 grid((pooled_height - 1) / tb + 1, (pooled_width - 1) / tb + 1, THCudaTensor_size(input, 0) * THCudaTensor_size(input, 1));
 
