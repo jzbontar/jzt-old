@@ -944,20 +944,27 @@ int grey2jet(lua_State *L)
 	return 0;
 }
 
-__global__ void L2Pooling_updateOutput_kernel(float *input, float *output, int ksize, int stride, int width, int height)
+__global__ void L2Pooling_updateOutput_kernel(float *input, float *output, int ksize, int stride, int width, int height, int pooled_width, int pooled_height)
 {
-	int row = (blockIdx.x * blockDim.x + threadIdx.x) * stride;
-	int col = (blockIdx.y * blockDim.y + threadIdx.y) * stride;
-	int img_offset = blockIdx.z * width * height;
+	const int row_out = blockIdx.x * blockDim.x + threadIdx.x;
+	const int col_out = blockIdx.y * blockDim.y + threadIdx.y;
 
-	int val = 0;
-	for (int i = 0; i < ksize; i++) {
-		for (int j = 0; j < ksize; j++) {
-			float d = input[img_offset + (row + i) * width + (col + j)];
-			val += d * d;
+	if (row_out < pooled_height && col_out < pooled_width) {
+		const int row_in = row_out * stride;
+		const int col_in = col_out * stride;
+
+		const int offset_in = blockIdx.z * width * height;
+		const int offset_out = blockIdx.z * pooled_width * pooled_height;
+
+		float val = 0;
+		for (int i = 0; i < ksize; i++) {
+			for (int j = 0; j < ksize; j++) {
+				float d = input[offset_in + (row_in + i) * width + (col_in + j)];
+				val += d * d;
+			}
 		}
+		output[offset_out + row_out * pooled_width + col_out] = sqrtf(val);
 	}
-	output[img_offset + row * blockDim.y + col] = sqrtf(val);
 }
 
 int L2Pooling_updateOutput(lua_State *L) {
@@ -984,12 +991,12 @@ int L2Pooling_updateOutput(lua_State *L) {
 
 	const int tb = 16;
 	const dim3 block(tb, tb);
-	const dim3 grid(pooled_height, pooled_width, THCudaTensor_size(input, 0) * THCudaTensor_size(input, 1));
+	const dim3 grid((pooled_height - 1) / tb + 1, (pooled_width - 1) / tb + 1, THCudaTensor_size(input, 0) * THCudaTensor_size(input, 1));
 
-	L2Pooling_updateOutput_kernel<<<block, grid>>>(
+	L2Pooling_updateOutput_kernel<<<grid, block>>>(
 		THCudaTensor_data(input), 
 		THCudaTensor_data(output), 
-		ksize, stride, width, height);
+		ksize, stride, width, height, pooled_width, pooled_height);
 	
 	return 0;
 }
