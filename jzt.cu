@@ -985,8 +985,8 @@ int L2Pooling_updateOutput(lua_State *L)
 	const int height = THCudaTensor_size(input, 2);
 	const int width = THCudaTensor_size(input, 3);
 
-	const int pooled_height = ceil((float)(height - ksize) / stride) + 1;
-	const int pooled_width = ceil((float)(width - ksize) / stride) + 1;
+	const int pooled_height = floor((float)(height - ksize) / stride) + 1;
+	const int pooled_width = floor((float)(width - ksize) / stride) + 1;
 
 	assert(THCudaTensor_size(output, 2) == pooled_height);
 	assert(THCudaTensor_size(output, 3) == pooled_width);

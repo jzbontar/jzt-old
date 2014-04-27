@@ -72,25 +72,11 @@ end
 
 test = {}
 function test.L2Pooling()
-   cutorch.manualSeed(42)
+   torch.manualSeed(42)
+   A = torch.CudaTensor(6, 8, 12, 7):normal()
+   n = jzt.L2Pooling(3, 2)
 
---   A = torch.CudaTensor(128, 64, 5, 7):normal()
---   B = torch.CudaTensor(128, 64, 2, 3):zero()
---   jzt.L2Pooling_updateOutput(A, B, 3, 2)
---
---   print(A[{4,5}])
---   print(B[{4,5}])
---
---   x = A[{4,5,{3,5},{3,5}}]
---   print(x)
---   print(torch.sqrt(x:cmul(x):sum()))
-
-   A = torch.CudaTensor(128, 64, 28, 28):normal()
-   B = torch.CudaTensor(128, 64, 14, 14):zero()
-
-   for i = 1,20 do
-      jzt.L2Pooling_updateOutput(A, B, 3, 2)
-   end
+   print(testJacobian(n, A))
 end
 
 

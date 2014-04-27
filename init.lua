@@ -12,6 +12,7 @@ include('SpatialLogSoftMax.lua')
 include('StereoJoin.lua')
 include('SpatialBias.lua')
 include('Tanh.lua')
+include('L2Pooling.lua')
 
 include('ClassNLLCriterion.lua')
 include('L1Cost.lua')
