@@ -999,17 +999,48 @@ int L2Pooling_updateOutput(lua_State *L)
 	return 0;
 }
 
+__global__ void L2Pooling_updateGradInput_kernel(float *input, float *output, float *gradInput, float *gradOutput, int ksize, int stride, int size, int width, int height, int pooled_width, int pooled_height)
+{
+	int output_id = blockIdx.x * blockDim.x + threadIdx.x;
+	int dim01 = output_id;
+	const int col_out = dim01 % pooled_width;
+	dim01 /= pooled_width;
+	const int row_out = dim01 % pooled_height;
+	dim01 /= pooled_height;
+
+	if (output_id < size) {
+		const int row_in = row_out * stride;
+		const int col_in = col_out * stride;
+		const int offset_in = dim01 * width * height;
+		for (int i = 0; i < ksize; i++) {
+			for (int j = 0; j < ksize; j++) {
+				const int input_id = offset_in + (row_in + i) * width + (col_in + j);
+				atomicAdd(gradInput + input_id, input[input_id] * gradOutput[output_id] / output[output_id]);
+			}
+		}
+	}
+}
+
 int L2Pooling_updateGradInput(lua_State *L)
 {
 	THCudaTensor *input = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
 	THCudaTensor *output = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
-	THCudaTensor *gradOutput = (THCudaTensor*)luaT_checkudata(L, 3, "torch.CudaTensor");
-	THCudaTensor *gradInput = (THCudaTensor*)luaT_checkudata(L, 4, "torch.CudaTensor");
+	THCudaTensor *gradInput = (THCudaTensor*)luaT_checkudata(L, 3, "torch.CudaTensor");
+	THCudaTensor *gradOutput = (THCudaTensor*)luaT_checkudata(L, 4, "torch.CudaTensor");
+	int ksize = luaL_checkinteger(L, 5);
+	int stride = luaL_checkinteger(L, 6);
 
-/*
-	L2Pooling_updateGradInput_kernel<<<(THCudaTensor_nElement(gradInput) - 1) / TB + 1, TB>>>(
-	);
-*/
+	L2Pooling_updateGradInput_kernel<<<(THCudaTensor_nElement(output) - 1) / TB + 1, TB>>>(
+		THCudaTensor_data(input),
+		THCudaTensor_data(output),
+		THCudaTensor_data(gradInput),
+		THCudaTensor_data(gradOutput),
+		ksize, stride,
+		THCudaTensor_nElement(output),
+		THCudaTensor_size(input, 3),
+		THCudaTensor_size(input, 2),
+		THCudaTensor_size(output, 3),
+		THCudaTensor_size(output, 2));
 	return 0;
 }
 
@@ -1042,6 +1073,7 @@ static const struct luaL_Reg funcs[] = {
 	{"add_bias4", add_bias4},
 
 	{"L2Pooling_updateOutput", L2Pooling_updateOutput},
+	{"L2Pooling_updateGradInput", L2Pooling_updateGradInput},
 
 	{"stereoJoin_updateOutput", stereoJoin_updateOutput},
 	{"stereoJoin_updateGradInput", stereoJoin_updateGradInput},
