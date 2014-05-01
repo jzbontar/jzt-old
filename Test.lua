@@ -54,10 +54,10 @@ function testCriterion(module, input, target)
    for i = 1,sinput:nElement() do
       local orig = sinput[i]
       sinput[i] = orig + eps
-      local f1 = module:forward(input, target):double()
+      local f1 = module:forward(input, target)
 
       sinput[i] = orig - eps
-      local f2 = module:forward(input, target):double()
+      local f2 = module:forward(input, target)
 
       grad_hat[i] = (f1 - f2) / (2 * eps)
       sinput[i] = orig

@@ -70,7 +70,6 @@ function test.StereoJoin()
    print(testJacobian(n, A))
 end
 
-test = {}
 function test.L2Pooling()
    torch.manualSeed(42)
    A = torch.CudaTensor(6, 8, 12, 7):normal()
@@ -79,6 +78,13 @@ function test.L2Pooling()
    print(testJacobian(n, A))
 end
 
+test = {}
+function test.L1Cost()
+   A = torch.CudaTensor(5, 4, 3, 3):normal()
+   n = jzt.L1Cost():cuda()
+
+   print(testCriterion(n, A))
+end
 
 for k, v in pairs(test) do
    print('Testing ' .. k)
