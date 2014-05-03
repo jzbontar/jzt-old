@@ -1045,7 +1045,7 @@ int L2Pooling_updateGradInput(lua_State *L)
 }
 
 
-__global__ void ConvSplit_updateOutput_kernel(float *input, float *output, int output_size, int win_size, int overlap, int ncol, int nrow, int width, int height)
+__global__ void ConvSplit_updateOutput_kernel(float *input, float *output, int output_size, int nimg, int nmap, int win_size, int overlap, int ncol, int nrow, int width, int height)
 {
 	int output_id = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -1055,14 +1055,18 @@ __global__ void ConvSplit_updateOutput_kernel(float *input, float *output, int o
 		id /= win_size;
 		const int y = id % win_size;
 		id /= win_size;
+		const int map = id % nmap;
+		id /= nmap;
 		const int col = id % ncol;
 		id /= ncol;
 		const int row = id % nrow;
+		id /= nrow;
+		const int img = id;
 
 		const int ii = row * (win_size - 2 * overlap) + y;
 		const int jj = col * (win_size - 2 * overlap) + x;
-		if (ii < height && jj < width) {
-			output[output_id] = input[ii * width + jj];
+		if (ii < height && jj < width && img < nimg) {
+			output[output_id] = input[((img * nmap + map) * height + ii) * width + jj];
 		} else {
 			output[output_id] = 0;
 		}
@@ -1078,6 +1082,8 @@ int ConvSplit_updateOutput(lua_State *L)
 	const int nrow = luaL_checkinteger(L, 5);
 	const int ncol = luaL_checkinteger(L, 6);
 
+	const int nimg = THCudaTensor_size(input, 0);
+	const int nmap = THCudaTensor_size(input, 1);
 	const int height = THCudaTensor_size(input, 2);
 	const int width = THCudaTensor_size(input, 3);
 
@@ -1085,11 +1091,12 @@ int ConvSplit_updateOutput(lua_State *L)
 		THCudaTensor_data(input),
 		THCudaTensor_data(output),
 		THCudaTensor_nElement(output),
-		win_size, overlap, ncol, nrow, width, height);
+		nimg, nmap, win_size, overlap, ncol, nrow, width, height);
+	checkCudaError(L);
 	return 0;
 }
 
-__global__ void ConvJoin_updateOutput_kernel(float *input, float *output, int output_size, int nimg, int win_size, int width, int height, int ncol)
+__global__ void ConvJoin_updateOutput_kernel(float *input, float *output, int output_size, int nmap, int win_size, int width, int height, int ncol, int nrow)
 {
 	int output_id = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -1099,6 +1106,8 @@ __global__ void ConvJoin_updateOutput_kernel(float *input, float *output, int ou
 		id /= width;
 		const int y = id % height;
 		id /= height;
+		const int map = id % nmap;
+		id /= nmap;
 		const int img = id;
 
 		const int col = x / win_size;
@@ -1106,7 +1115,7 @@ __global__ void ConvJoin_updateOutput_kernel(float *input, float *output, int ou
 		const int xx = x % win_size;
 		const int yy = y % win_size;
 		
-		output[output_id] = input[(((row * ncol + col) * nimg + img) * win_size + yy) * win_size + xx];
+		output[output_id] = input[((((img * nrow + row) * ncol + col) * nmap + map) * win_size + yy) * win_size + xx];
 	}
 }
 
@@ -1114,20 +1123,21 @@ int ConvJoin_updateOutput(lua_State *L)
 {
 	THCudaTensor *input = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
 	THCudaTensor *output = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
+	const int nrow = luaL_checkinteger(L, 3);
+	const int ncol = luaL_checkinteger(L, 4);
 
+	const int nmap = THCudaTensor_size(output, 1);
 	const int height = THCudaTensor_size(output, 2);
 	const int width = THCudaTensor_size(output, 3);
 	const int win_size = THCudaTensor_size(input, 2);
 	assert(win_size == THCudaTensor_size(input, 3));
-	const int ncol = ceil((double)width / win_size);
-	assert(ncol * ncol == THCudaTensor_size(input, 0));
 
 	ConvJoin_updateOutput_kernel<<<(THCudaTensor_nElement(output) - 1) / TB + 1, TB>>>(
 		THCudaTensor_data(input),
 		THCudaTensor_data(output),
 		THCudaTensor_nElement(output),
-		THCudaTensor_size(input, 1),
-		win_size, width, height, ncol);
+		nmap, win_size, width, height, ncol, nrow);
+	checkCudaError(L);
 	return 0;
 }
 

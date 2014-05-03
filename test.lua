@@ -89,21 +89,48 @@ end
 
 test = {}
 function test.ConvSplit()
-   x = image.rgb2y(image.lena()):resize(1, 1, 512, 512):cuda()
+   x = torch.Tensor(2, 1, 250, 1242):cuda()
 
-   conv1 = nn.SpatialConvolutionFFT(1, 16, 11, 11):cuda()
-   n = jzt.ConvSplit(64, 5)
-   m = jzt.ConvJoin(502, 502)
+   n = jzt.ConvSplit(128, 10 * 3)
+   m = jzt.ConvJoin(n)
+   net1 = nn.Sequential()
+   net1:add(nn.SpatialConvolutionRing2(1, 32, 11, 11):cuda())
+   net1:add(nn.SpatialConvolutionRing2(32, 32, 11, 11):cuda())
+   net1:add(nn.SpatialConvolutionRing2(32, 32, 11, 11):cuda())
    n:forward(x)
-   conv1:forward(n.output)
-   out1 = m:forward(conv1.output)
+   for i = 1,10 do
+      net1:forward(n.output)
+      collectgarbage()
+   end
+   out1 = m:forward(net1.output)
 
-   conv2 = nn.SpatialConvolution(1, 16, 11, 11):cuda()
-   conv2.weight = conv1.weight
-   conv2.bias = conv1.bias
-   out2 = conv2:forward(x)
-   
-   print(out1:add(-1, out2):abs():max())
+--   net2 = nn.Sequential()
+--   net2:add(nn.SpatialConvolution(1, 32, 11, 11))
+--   net2:add(nn.SpatialConvolution(32, 32, 11, 11))
+--   net2:add(nn.SpatialConvolution(32, 32, 11, 11))
+--   net2:cuda()
+--   for i = 1,10 do
+--      print(i)
+--      net2:forward(x)
+--      collectgarbage()
+--   end
+
+--   net2 = nn.Sequential()
+--   net2:add(nn.SpatialConvolution(1, 32, 7, 7):cuda())
+--   net2:add(nn.SpatialConvolution(32, 32, 7, 7):cuda())
+--   net2:add(nn.SpatialConvolution(32, 32, 7, 7):cuda())
+--   net2:get(1).weight = net1:get(1).weight
+--   net2:get(1).bias = net1:get(1).bias
+--   net2:get(2).weight = net1:get(2).weight
+--   net2:get(2).bias = net1:get(2).bias
+--   net2:get(3).weight = net1:get(3).weight
+--   net2:get(3).bias = net1:get(3).bias
+--   out2 = net2:forward(x)
+--   cutorch.synchronize()
+--   prof.tic(2)
+--   net2:forward(x)
+--   cutorch.synchronize()
+--   prof.toc(2)
 end
 
 for k, v in pairs(test) do
