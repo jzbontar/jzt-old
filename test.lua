@@ -1,7 +1,9 @@
 require 'Test'
 require 'jzt'
 require 'nn'
+require 'image'
 require 'cunn'
+require 'prof-torch'
 
 test = {}
 function test.Linear()
@@ -78,12 +80,18 @@ function test.L2Pooling()
    print(testJacobian(n, A))
 end
 
-test = {}
 function test.L1Cost()
    A = torch.CudaTensor(5, 4, 3, 3):normal()
    n = jzt.L1Cost():cuda()
 
    print(testCriterion(n, A))
+end
+
+test = {}
+function test.ConvSplit()
+   x = image.rgb2y(image.lena()):resize(1, 1, 512, 512):cuda()
+   n = jzt.ConvSplit(64, 5)
+   n:forward(x)
 end
 
 for k, v in pairs(test) do
