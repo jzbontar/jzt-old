@@ -14,6 +14,7 @@ include('SpatialBias.lua')
 include('Tanh.lua')
 include('L2Pooling.lua')
 include('ConvSplit.lua')
+include('ConvJoin.lua')
 
 include('ClassNLLCriterion.lua')
 include('L1Cost.lua')

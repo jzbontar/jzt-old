@@ -90,8 +90,16 @@ end
 test = {}
 function test.ConvSplit()
    x = image.rgb2y(image.lena()):resize(1, 1, 512, 512):cuda()
+   conv = nn.SpatialConvolution(1, 1, 11, 11):cuda()
+
    n = jzt.ConvSplit(64, 5)
    n:forward(x)
+   conv:forward(n.output)
+
+   m = jzt.ConvJoin(512, 512)
+   m:forward(conv.output)
+
+   image.display(m.output[{1,1}])
 end
 
 for k, v in pairs(test) do

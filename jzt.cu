@@ -1051,16 +1051,16 @@ __global__ void ConvSplit_updateOutput_kernel(float *input, float *output, int o
 
 	if (output_id < output_size) {
 		int id = output_id;
-		int x = id % win_size;
+		const int x = id % win_size;
 		id /= win_size;
-		int y = id % win_size;
+		const int y = id % win_size;
 		id /= win_size;
-		int col = id % ncol;
+		const int col = id % ncol;
 		id /= ncol;
-		int row = id % nrow;
+		const int row = id % nrow;
 
-		int ii = row * (win_size - 2 * overlap) + y;
-		int jj = col * (win_size - 2 * overlap) + x;
+		const int ii = row * (win_size - 2 * overlap) + y;
+		const int jj = col * (win_size - 2 * overlap) + x;
 		if (ii < height && jj < width) {
 			output[output_id] = input[ii * width + jj];
 		} else {
@@ -1086,6 +1086,45 @@ int ConvSplit_updateOutput(lua_State *L)
 		THCudaTensor_data(output),
 		THCudaTensor_nElement(output),
 		win_size, overlap, ncol, nrow, width, height);
+	return 0;
+}
+
+__global__ void ConvJoin_updateOutput_kernel(float *input, float *output, int output_size, int win_size, int width, int height, int ncol)
+{
+	int output_id = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if (output_id < output_size) {
+		int id = output_id;
+		const int x = id % width;
+		id /= width;
+		const int y = id % height;
+
+		const int col = x / win_size;
+		const int row = y / win_size;
+		const int xx = x % win_size;
+		const int yy = y % win_size;
+		
+		output[output_id] = input[((row * ncol + col) * win_size + yy) * win_size + xx];
+	}
+}
+
+int ConvJoin_updateOutput(lua_State *L)
+{
+	THCudaTensor *input = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
+	THCudaTensor *output = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
+
+	const int height = THCudaTensor_size(output, 2);
+	const int width = THCudaTensor_size(output, 3);
+	const int win_size = THCudaTensor_size(input, 2);
+	assert(win_size == THCudaTensor_size(input, 3));
+	const int ncol = ceil((double)width / win_size);
+	assert(ncol * ncol == THCudaTensor_size(input, 0));
+
+	ConvJoin_updateOutput_kernel<<<(THCudaTensor_nElement(output) - 1) / TB + 1, TB>>>(
+		THCudaTensor_data(input),
+		THCudaTensor_data(output),
+		THCudaTensor_nElement(output),
+		win_size, width, height, ncol);
 	return 0;
 }
 
@@ -1124,6 +1163,7 @@ static const struct luaL_Reg funcs[] = {
 	{"stereoJoin_updateGradInput", stereoJoin_updateGradInput},
 
 	{"ConvSplit_updateOutput", ConvSplit_updateOutput},
+	{"ConvJoin_updateOutput", ConvJoin_updateOutput},
 
 	{"depth2disp", depth2disp},
 	{"grey2jet", grey2jet},
