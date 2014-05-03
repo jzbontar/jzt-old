@@ -4,8 +4,6 @@ function ConvSplit:__init(win_size, overlap)
    parent.__init(self)
    self.win_size = win_size
    self.overlap = overlap
-
-   self.zero_pad = nn.SpatialZeroPadding(overlap, overlap, overlap, overlap):cuda()
    self:cuda()
 end
 
@@ -16,7 +14,6 @@ function ConvSplit:updateOutput(input)
    local nrow = math.ceil(input:size(3) / (self.win_size - 2 * self.overlap))
    local ncol = math.ceil(input:size(4) / (self.win_size - 2 * self.overlap))
 
-   input = self.zero_pad:forward(input)
    self.output:resize(nrow * ncol, 1, self.win_size, self.win_size)
    jzt.ConvSplit_updateOutput(input, self.output, self.win_size, self.overlap, nrow, ncol)
    return self.output

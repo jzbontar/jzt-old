@@ -93,16 +93,15 @@ function test.ConvSplit()
 
    conv1 = nn.SpatialConvolutionFFT(1, 16, 11, 11):cuda()
    n = jzt.ConvSplit(64, 5)
-   m = jzt.ConvJoin(512, 512)
+   m = jzt.ConvJoin(502, 502)
    n:forward(x)
    conv1:forward(n.output)
    out1 = m:forward(conv1.output)
 
-   pad = nn.SpatialZeroPadding(5, 5, 5, 5):cuda()
    conv2 = nn.SpatialConvolution(1, 16, 11, 11):cuda()
    conv2.weight = conv1.weight
    conv2.bias = conv1.bias
-   out2 = conv2:forward(pad:forward(x))
+   out2 = conv2:forward(x)
    
    print(out1:add(-1, out2):abs():max())
 end

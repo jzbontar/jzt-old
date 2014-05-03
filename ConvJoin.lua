@@ -12,3 +12,7 @@ function ConvJoin:updateOutput(input)
    jzt.ConvJoin_updateOutput(input, self.output)
    return self.output
 end
+
+function ConvJoin:updateGradInput(input, gradOutput)
+   self.gradOutput:resizeAs(input)
+end
