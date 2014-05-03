@@ -1089,7 +1089,7 @@ int ConvSplit_updateOutput(lua_State *L)
 	return 0;
 }
 
-__global__ void ConvJoin_updateOutput_kernel(float *input, float *output, int output_size, int win_size, int width, int height, int ncol)
+__global__ void ConvJoin_updateOutput_kernel(float *input, float *output, int output_size, int nimg, int win_size, int width, int height, int ncol)
 {
 	int output_id = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -1098,13 +1098,15 @@ __global__ void ConvJoin_updateOutput_kernel(float *input, float *output, int ou
 		const int x = id % width;
 		id /= width;
 		const int y = id % height;
+		id /= height;
+		const int img = id;
 
 		const int col = x / win_size;
 		const int row = y / win_size;
 		const int xx = x % win_size;
 		const int yy = y % win_size;
 		
-		output[output_id] = input[((row * ncol + col) * win_size + yy) * win_size + xx];
+		output[output_id] = input[(((row * ncol + col) * nimg + img) * win_size + yy) * win_size + xx];
 	}
 }
 
@@ -1124,6 +1126,7 @@ int ConvJoin_updateOutput(lua_State *L)
 		THCudaTensor_data(input),
 		THCudaTensor_data(output),
 		THCudaTensor_nElement(output),
+		THCudaTensor_size(input, 1),
 		win_size, width, height, ncol);
 	return 0;
 }

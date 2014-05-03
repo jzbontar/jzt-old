@@ -90,16 +90,21 @@ end
 test = {}
 function test.ConvSplit()
    x = image.rgb2y(image.lena()):resize(1, 1, 512, 512):cuda()
-   conv = nn.SpatialConvolution(1, 1, 11, 11):cuda()
 
+   conv1 = nn.SpatialConvolutionFFT(1, 16, 11, 11):cuda()
    n = jzt.ConvSplit(64, 5)
-   n:forward(x)
-   conv:forward(n.output)
-
    m = jzt.ConvJoin(512, 512)
-   m:forward(conv.output)
+   n:forward(x)
+   conv1:forward(n.output)
+   out1 = m:forward(conv1.output)
 
-   image.display(m.output[{1,1}])
+   pad = nn.SpatialZeroPadding(5, 5, 5, 5):cuda()
+   conv2 = nn.SpatialConvolution(1, 16, 11, 11):cuda()
+   conv2.weight = conv1.weight
+   conv2.bias = conv1.bias
+   out2 = conv2:forward(pad:forward(x))
+   
+   print(out1:add(-1, out2):abs():max())
 end
 
 for k, v in pairs(test) do

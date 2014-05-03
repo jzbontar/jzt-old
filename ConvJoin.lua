@@ -8,7 +8,7 @@ function ConvJoin:__init(height, width)
 end
 
 function ConvJoin:updateOutput(input)
-   self.output:resize(1, 1, self.height, self.width)
+   self.output:resize(1, input:size(2), self.height, self.width)
    jzt.ConvJoin_updateOutput(input, self.output)
    return self.output
 end
