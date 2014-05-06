@@ -203,6 +203,25 @@ int get_cols(lua_State *L)
 	return 0;
 }
 
+__global__ void get_spatial_kernel(float *A, int A_stride, float *inds, float *res, int len)
+{
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i < len) {
+		res[i] = A[((int)inds[i] - 1) * A_stride + i];
+	}
+}
+
+int get_spatial(lua_State *L)
+{
+	THCudaTensor *A = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
+	THCudaTensor *inds = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
+	THCudaTensor *res = (THCudaTensor*)luaT_checkudata(L, 3, "torch.CudaTensor");
+	assert(A->nDimension == 4);
+	int len = THCudaTensor_nElement(inds);
+	get_spatial_kernel<<<(len - 1)  / TB + 1, TB>>>(THCudaTensor_data(A), A->stride[1], THCudaTensor_data(inds), THCudaTensor_data(res), len);
+	return 0;
+}
+
 
 /* A[inds[i]] = val */
 __global__ void set_cols(float *A, int A_stride, float *inds, float val, int len)
@@ -1148,6 +1167,7 @@ static const struct luaL_Reg funcs[] = {
 	{"div_mat_vect", div_mat_vect},
 	{"exp", _exp},
 	{"get_cols", get_cols},
+	{"get_spatial", get_spatial},
 	{"huber", huber},
 	{"huber_deriv", huber_deriv},
 	{"max", _max},
