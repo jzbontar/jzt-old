@@ -242,6 +242,23 @@ int set_cols(lua_State *L)
 	return 0;
 }
 
+__global__ void set_spatial_kernel(float *A, int A_stride, float *inds, float val, int len)
+{
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i < len) {
+		A[((int)inds[i] - 1) * A_stride + i] = val;
+	}
+}
+
+int set_spatial(lua_State *L)
+{
+	THCudaTensor *A = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
+	THCudaTensor *inds = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
+	float val = luaL_checknumber(L, 3);
+	int len = THCudaTensor_nElement(inds);
+	set_spatial_kernel<<<(len - 1)  / TB + 1, TB>>>(THCudaTensor_data(A), A->stride[1], THCudaTensor_data(inds), val, len);
+	return 0;
+}
 
 template<class Op>
 int transform1(Op op, lua_State *L)
@@ -1177,6 +1194,7 @@ static const struct luaL_Reg funcs[] = {
 	{"mult_mat_vect", mult_mat_vect},
 	{"relu", relu},
 	{"set_cols", set_cols},
+	{"set_spatial", set_spatial},
 	{"shrink", shrink},
 	{"sigmoid", sigmoid},
 	{"smul", smul},
