@@ -3,6 +3,7 @@ require 'jzt'
 require 'nn'
 require 'image'
 require 'cunn'
+require 'cutorch'
 require 'prof-torch'
 
 test = {}
@@ -87,7 +88,6 @@ function test.L1Cost()
    print(testCriterion(n, A))
 end
 
-test = {}
 function test.ConvSplit()
    x = torch.Tensor(2, 1, 250, 1242):cuda()
 
@@ -131,6 +131,15 @@ function test.ConvSplit()
 --   net2:forward(x)
 --   cutorch.synchronize()
 --   prof.toc(2)
+end
+
+test = {}
+function test.SpatialNormalization()
+   torch.manualSeed(42)
+   A = torch.CudaTensor(3, 8, 4, 5):normal()
+   n = jzt.SpatialNormalization(8)
+
+   print(testJacobian(n, A))
 end
 
 for k, v in pairs(test) do
