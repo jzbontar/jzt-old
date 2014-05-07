@@ -67,12 +67,6 @@ function test.SpatialBias()
    print(testJacobianParameters(net, A))
 end
 
-function test.StereoJoin()
-   A = torch.CudaTensor(6, 8, 4, 12):normal()
-   n = jzt.StereoJoin(3)
-   print(testJacobian(n, A))
-end
-
 function test.L2Pooling()
    torch.manualSeed(42)
    A = torch.CudaTensor(6, 8, 12, 7):normal()
@@ -133,12 +127,29 @@ function test.ConvSplit()
 --   prof.toc(2)
 end
 
-test = {}
 function test.SpatialNormalization()
-   torch.manualSeed(42)
    A = torch.CudaTensor(3, 8, 4, 5):normal()
    n = jzt.SpatialNormalization(8)
 
+   print(testJacobian(n, A))
+end
+
+function test.Margin1Loss()
+   cutorch.manualSeed(42)
+   A = torch.CudaTensor(1, 3, 3, 3):normal()
+   T = torch.CudaTensor(1, 1, 3, 3):uniform():mul(3):ceil()
+   n = jzt.Margin1Loss()
+
+   print(A)
+   print(T)
+
+   n:forward(A, T)
+end
+
+test = {}
+function test.StereoJoin()
+   A = torch.CudaTensor(6, 8, 4, 12):normal()
+   n = jzt.StereoJoin(3, 'cos')
    print(testJacobian(n, A))
 end
 
