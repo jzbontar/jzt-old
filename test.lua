@@ -152,10 +152,17 @@ function test.StereoJoin()
    print(testJacobian(n, A))
 end
 
-test = {}
 function test.Mul()
    A = torch.CudaTensor(6, 8, 4, 12):normal()
    n = jzt.Mul(-1)
+   print(testJacobian(n, A))
+end
+
+test = {}
+function test.Sqrt()
+   cutorch.manualSeed(42)
+   A = torch.CudaTensor(5):uniform()
+   n = jzt.Sqrt():cuda()
    print(testJacobian(n, A))
 end
 

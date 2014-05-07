@@ -17,6 +17,7 @@ include('ConvSplit.lua')
 include('ConvJoin.lua')
 include('SpatialNormalization.lua')
 include('Mul.lua')
+include('Sqrt.lua')
 
 include('ClassNLLCriterion.lua')
 include('L1Cost.lua')
