@@ -146,10 +146,16 @@ function test.Margin1Loss()
    n:forward(A, T)
 end
 
-test = {}
 function test.StereoJoin()
    A = torch.CudaTensor(6, 8, 4, 12):normal()
-   n = jzt.StereoJoin(3, 'cos')
+   n = jzt.StereoJoin(3, 'L2_square')
+   print(testJacobian(n, A))
+end
+
+test = {}
+function test.Mul()
+   A = torch.CudaTensor(6, 8, 4, 12):normal()
+   n = jzt.Mul(-1)
    print(testJacobian(n, A))
 end
 
