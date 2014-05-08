@@ -228,7 +228,8 @@ __global__ void get_spatial_kernel(float *A, int A_stride, float *inds, float *r
 {
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i < len) {
-		res[i] = A[((int)inds[i] - 1) * A_stride + i];
+		int j = inds[i] - 1;
+		res[i] = j == -1 ? 0 : A[j * A_stride + i];
 	}
 }
 
@@ -267,7 +268,10 @@ __global__ void set_spatial_kernel(float *A, int A_stride, float *inds, float va
 {
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i < len) {
-		A[((int)inds[i] - 1) * A_stride + i] = val;
+		int j = inds[i] - 1;
+		if (j >= 0) {
+			A[j * A_stride + i] = val;
+		}
 	}
 }
 

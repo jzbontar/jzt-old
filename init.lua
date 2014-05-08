@@ -20,6 +20,7 @@ include('Mul.lua')
 include('Sqrt.lua')
 
 include('ClassNLLCriterion.lua')
+include('SpatialClassNLLCriterion.lua')
 include('L1Cost.lua')
 include('MSECost.lua')
 include('HuberCost.lua')

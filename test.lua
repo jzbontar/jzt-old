@@ -158,12 +158,21 @@ function test.Mul()
    print(testJacobian(n, A))
 end
 
-test = {}
 function test.Sqrt()
    cutorch.manualSeed(42)
    A = torch.CudaTensor(5):uniform()
    n = jzt.Sqrt():cuda()
    print(testJacobian(n, A))
+end
+
+test = {}
+function test.SpatialClassNLLCriterion()
+   cutorch.manualSeed(1)
+   A = torch.CudaTensor(1, 2, 3, 3):normal()
+   t = torch.CudaTensor(1, 1, 3, 3):uniform():mul(3):floor()
+
+   m = jzt.SpatialClassNLLCriterion()
+   print(testCriterion(m, A, t))
 end
 
 for k, v in pairs(test) do
