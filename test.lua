@@ -171,27 +171,21 @@ function test.mask()
    print(A)
 end
 
-function test.Margin1Loss()
-   cutorch.manualSeed(42)
-   A = torch.CudaTensor(1, 3, 4, 4):normal()
-   T = torch.CudaTensor(1, 1, 4, 4):uniform():mul(4):floor()
-   n = jzt.Margin1Loss()
-
-   print(A)
-   print(T)
-
-   n:forward(A, T)
-end
-
-test = {}
 function test.spatial_argmin()
    A = torch.CudaTensor(1, 3, 4, 4):normal()
    O = torch.CudaTensor(1, 1, 4, 4):zero()
-
    jzt.spatial_argmin(A, O)
    print(A)
    print(O)
+end
 
+test = {}
+function test.Margin1Loss()
+   A = torch.CudaTensor(1, 3, 4, 4):normal()
+   T = torch.CudaTensor(1, 1, 4, 4):uniform():mul(4):floor()
+   n = jzt.Margin1Loss(0.5)
+   
+   print(testCriterion(n, A, T))
 end
 
 for k, v in pairs(test) do
