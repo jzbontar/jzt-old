@@ -50,6 +50,13 @@ struct opDiv {
 	}
 };
 
+struct opMask {
+	__device__ float operator()(float x, float y)
+	{
+		return y == 0 ? 0 : x;
+	}
+};
+
 struct opSMul {
 	float alpha;
 	opSMul(float alpha_) : alpha(alpha_) {};
@@ -344,6 +351,11 @@ int huber_deriv(lua_State *L)
 	return transform2(opHuberDeriv(threshold), L);
 }
 
+int mask(lua_State *L)
+{
+	return transform2(opMask(), L);
+}
+
 int shrink(lua_State *L)
 {
 	float threshold = luaL_checknumber(L, 3);
@@ -632,7 +644,7 @@ __global__ void spatial_argmax_kernel(float *input, float *output, int size, int
 		int dim23 = id % size23;
 		int dim0 = id / size23;
 
-		int argmax;
+		int argmax = 0;
 		float max = -2e38;
 		for (int i = 0; i < size1; i++) {
 			float val = input[(dim0 * size1 + i) * size23 + dim23];
@@ -1249,6 +1261,7 @@ static const struct luaL_Reg funcs[] = {
 	{"get_spatial", get_spatial},
 	{"huber", huber},
 	{"huber_deriv", huber_deriv},
+	{"mask", mask},
 	{"max", _max},
 	{"mult_by_relu_deriv", mult_by_relu_deriv},
 	{"mult_by_sigmoid_deriv", mult_by_sigmoid_deriv},

@@ -165,7 +165,6 @@ function test.Sqrt()
    print(testJacobian(n, A))
 end
 
-test = {}
 function test.SpatialClassNLLCriterion()
    cutorch.manualSeed(1)
    A = torch.CudaTensor(1, 2, 3, 3):normal()
@@ -174,6 +173,17 @@ function test.SpatialClassNLLCriterion()
    m = jzt.SpatialClassNLLCriterion()
    print(testCriterion(m, A, t))
 end
+
+test = {}
+function test.mask()
+   A = torch.CudaTensor(1, 1, 4, 4):normal()
+   T = torch.CudaTensor(1, 1, 4, 4):uniform():mul(3):floor()
+   print(A)
+   print(T)
+   jzt.mask(A, T, A)
+   print(A)
+end
+
 
 for k, v in pairs(test) do
    print('Testing ' .. k)
