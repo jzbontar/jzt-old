@@ -134,18 +134,6 @@ function test.SpatialNormalization()
    print(testJacobian(n, A))
 end
 
-function test.Margin1Loss()
-   cutorch.manualSeed(42)
-   A = torch.CudaTensor(1, 3, 3, 3):normal()
-   T = torch.CudaTensor(1, 1, 3, 3):uniform():mul(3):ceil()
-   n = jzt.Margin1Loss()
-
-   print(A)
-   print(T)
-
-   n:forward(A, T)
-end
-
 function test.StereoJoin()
    A = torch.CudaTensor(6, 8, 4, 12):normal()
    n = jzt.StereoJoin(3, 'L2_square')
@@ -174,7 +162,6 @@ function test.SpatialClassNLLCriterion()
    print(testCriterion(m, A, t))
 end
 
-test = {}
 function test.mask()
    A = torch.CudaTensor(1, 1, 4, 4):normal()
    T = torch.CudaTensor(1, 1, 4, 4):uniform():mul(3):floor()
@@ -184,6 +171,28 @@ function test.mask()
    print(A)
 end
 
+function test.Margin1Loss()
+   cutorch.manualSeed(42)
+   A = torch.CudaTensor(1, 3, 4, 4):normal()
+   T = torch.CudaTensor(1, 1, 4, 4):uniform():mul(4):floor()
+   n = jzt.Margin1Loss()
+
+   print(A)
+   print(T)
+
+   n:forward(A, T)
+end
+
+test = {}
+function test.spatial_argmin()
+   A = torch.CudaTensor(1, 3, 4, 4):normal()
+   O = torch.CudaTensor(1, 1, 4, 4):zero()
+
+   jzt.spatial_argmin(A, O)
+   print(A)
+   print(O)
+
+end
 
 for k, v in pairs(test) do
    print('Testing ' .. k)
