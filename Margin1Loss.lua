@@ -10,10 +10,14 @@ end
 function Margin1Loss:updateOutput(input, target)
    self.gradInput:resizeAs(input)
    self.tmp:resizeAs(target)
+
+   local ntargets = self.tmp:ne(target, 0):sum()
+
    self.gradInput:zero()
    self.tmp:zero()
    jzt.SpatialMargin1_costGrad(input, target, self.gradInput, self.tmp, self.margin)
-   self.output = self.tmp:sum()
+   self.output = self.tmp:sum() / ntargets
+   self.gradInput:div(ntargets)
    return self.output
 end
 
