@@ -6,6 +6,7 @@ function Margin1Loss:__init()
    self.actual = torch.CudaTensor()
    self.argmax = torch.CudaTensor()
    self.offending = torch.CudaTensor()
+   self.input_clone = torch.CudaTensor()
 end
 
 function Margin1Loss:updateOutput(input, target)
@@ -15,23 +16,23 @@ function Margin1Loss:updateOutput(input, target)
    assert(target:size(2) == 1)
 
    -- I will destroy the input -- make a copy
-   input = input:clone()
+   self.input_clone:resizeAs(input)
+   self.input_clone:copy(input)
 
    -- actual
    self.actual:resizeAs(target)
-   jzt.get_spatial(input, target, self.actual)
-   jzt.set_spatial(input, target, -2e38)
-
-   print(self.actual)
+   jzt.get_spatial(self.input_clone, target, self.actual)
+   jzt.set_spatial(self.input_clone, target, -2e38)
 
    -- most offending
    self.argmax:resizeAs(target)
    self.offending:resizeAs(target)
-   jzt.spatial_argmax(input, self.argmax)
-   jzt.get_spatial(input, self.argmax, self.offending)
+   jzt.spatial_argmax(self.input_clone, self.argmax)
+   jzt.get_spatial(self.input_clone, self.argmax, self.offending)
 
    self.offending:add(-1, self.actual):add(1)
    jzt.relu(self.offending, self.offending)
+   jzt.mask(self.offending, target, self.offending)
 
    self.output = self.offending:sum()
    return self.output
