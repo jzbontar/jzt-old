@@ -12,6 +12,7 @@ function SpatialNormalization:__init(nInputPlane)
    self.net:add(nn.Sqrt())
    self.net:add(nn.Replicate(nInputPlane))
    self.net:add(nn.Transpose({1, 2}))
+   self.net:add(nn.Threshold(1e-5, 1e-5))
    self.net:cuda()
 end
 
