@@ -1354,6 +1354,55 @@ int SpatialMargin1_costGrad(lua_State *L)
 	return 0;
 }
 
+__global__ void SpatialMargin2_costGrad_kernel(float *input, float *target, float *gradInput, float *output, float margin, int size, int size1, int size23)
+{
+	int id = blockIdx.x * blockDim.x + threadIdx.x;
+	
+	if (id < size) {
+		int t = target[id] - 1;
+		if (t >= 0) {
+			float d = input[t * size23 + id];
+			gradInput[t * size23 + id]++;
+			for (int i = 0; i < size1; i++) {
+				if (i != t) {
+					float dd = input[t * size23 + id] - input[i * size23 + id] + margin;
+					if (dd > 0) {
+						gradInput[t * size23 + id]++;
+						gradInput[i * size23 + id]--;
+						d += dd;
+					}
+				}
+			}
+			output[id] = d;
+		}
+	}
+}
+
+int SpatialMargin2_costGrad(lua_State *L)
+{
+	THCudaTensor *input = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
+	THCudaTensor *target = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
+	THCudaTensor *gradInput = (THCudaTensor*)luaT_checkudata(L, 3, "torch.CudaTensor");
+	THCudaTensor *output = (THCudaTensor*)luaT_checkudata(L, 4, "torch.CudaTensor");
+	float margin = luaL_checknumber(L, 5);
+
+	assert(input->nDimension == 4);
+	assert(THCudaTensor_size(output, 0) == 1);
+	assert(THCudaTensor_size(output, 1) == 1);
+
+	SpatialMargin1_costGrad_kernel<<<(THCudaTensor_nElement(output) - 1) / TB + 1, TB>>>(
+		THCudaTensor_data(input), 
+		THCudaTensor_data(target), 
+		THCudaTensor_data(gradInput), 
+		THCudaTensor_data(output), 
+		margin,
+		THCudaTensor_nElement(output),
+		THCudaTensor_size(input, 1),
+		THCudaTensor_size(input, 2) * THCudaTensor_size(input, 3));
+	checkCudaError(L);
+	return 0;
+}
+
 static const struct luaL_Reg funcs[] = {
 	{"add", add},
 	{"add_mat_vect", add_mat_vect},
@@ -1399,6 +1448,7 @@ static const struct luaL_Reg funcs[] = {
 	{"grey2jet", grey2jet},
 
 	{"SpatialMargin1_costGrad", SpatialMargin1_costGrad},
+	{"SpatialMargin2_costGrad", SpatialMargin2_costGrad},
 
 	{NULL, NULL}
 };

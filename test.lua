@@ -187,12 +187,21 @@ function test.Margin1Loss()
    print(testCriterion(n, A, T))
 end
 
-test = {}
 function test.SpatialRandnPadding()
    A = torch.CudaTensor(2, 1, 3, 3):normal()
    n = jzt.SpatialRandnPadding(2, 2, 2, 2):cuda()
    print(testJacobian(n, A))
 end
+
+test = {}
+function test.Margin2Loss()
+   A = torch.CudaTensor(1, 3, 4, 4):normal()
+   T = torch.CudaTensor(1, 1, 4, 4):uniform():mul(4):floor()
+   n = jzt.Margin2Loss(1)
+   
+   print(testCriterion(n, A, T))
+end
+
 
 for k, v in pairs(test) do
    print('Testing ' .. k)
