@@ -186,11 +186,11 @@ struct distL2Square {
 
 struct distCos {
 	__device__ float forward(float x, float y) {
-		return x * y;
+		return -x * y;
 	}
 
 	__device__ float backward(float x, float y) {
-		return y;
+		return -y;
 	}
 };
 
