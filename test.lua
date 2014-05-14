@@ -140,12 +140,6 @@ function test.StereoJoin()
    print(testJacobian(n, A))
 end
 
-function test.Mul()
-   A = torch.CudaTensor(6, 8, 4, 12):normal()
-   n = jzt.Mul(-1)
-   print(testJacobian(n, A))
-end
-
 function test.Sqrt()
    cutorch.manualSeed(42)
    A = torch.CudaTensor(5):uniform()
@@ -201,7 +195,6 @@ function test.Margin2Loss()
    print(testCriterion(n, A, T))
 end
 
-test = {}
 function test.cbca()
    img = torch.CudaTensor(1, 1, 5, 6):normal()
    disp = torch.CudaTensor(1, 7, 5, 6):normal()
@@ -228,6 +221,12 @@ function test.cbca()
 --   image.savePNG('foo1.png', i[{1,1}]:double():div(228))
 end
 
+test = {}
+function test.Mul()
+   A = torch.CudaTensor(6, 8, 4, 12):normal()
+   n = jzt.Mul(-1):cuda()
+   print(testJacobian(n, A))
+end
 
 for k, v in pairs(test) do
    print('Testing ' .. k)

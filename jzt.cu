@@ -1475,7 +1475,7 @@ __global__ void cbca_costGrad_kernel(float *img, float *disp, float *disp_out, f
 
 			for (int xx = xe + 1; xx < xw; xx++) {
 				float val = disp[(d * height + yy) * width + xx];
-				if (val > -1e38) {
+				if ((xx == x && yy == y) || val > -1e38) {
 					sum += val;
 					cnt++;
 				}
@@ -1496,7 +1496,7 @@ __global__ void cbca_costGrad_kernel(float *img, float *disp, float *disp_out, f
 
 			for (int xx = xe + 1; xx < xw; xx++) {
 				float val = disp[(d * height + yy) * width + xx];
-				if (val > -1e38) {
+				if ((xx == x && yy == y) || val > -1e38) {
 					atomicAdd(grad_input + (d * height + yy) * width + xx, g);
 				}
 			}

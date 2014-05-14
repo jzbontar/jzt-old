@@ -18,5 +18,5 @@ end
 function CBCA:updateGradInput(input, gradOutput)
    self.gradInput:resizeAs(input):zero()
    jzt.cbca_costGrad(self.img, input, self.output, self.gradInput, gradOutput, self.tau, self.L1, 1)
-   return self.gradOutput
+   return self.gradInput
 end
