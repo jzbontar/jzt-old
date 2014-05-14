@@ -1443,6 +1443,95 @@ int SpatialMargin2_costGrad(lua_State *L)
 	return 0;
 }
 
+#define CBCA_CONDITIONS(xx, yy) (\
+	0 <= yy && yy < height && \
+	0 <= xx && xx < width && \
+	fabsf(img[yy * width + xx] - img[y * width + x]) < tau && \
+	(xx - x) * (xx - x) + (yy - y) * (yy - y) < L1 * L1)
+
+__global__ void cbca_costGrad_kernel(float *img, float *disp, float *disp_out, float *grad_input, float *grad_output, int size, int disparity, int height, int width, float tau, int L1)
+{
+	int id = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if (id < size) {
+		const int x = id % width;
+		id /= width;
+		const int y = id % height;
+		id /= height;
+		const int d = id;
+
+		int yn, ys;
+		for (yn = y - 1; CBCA_CONDITIONS(x, yn); yn--) {};
+		for (ys = y + 1; CBCA_CONDITIONS(x, ys); ys++) {};
+
+		float sum = 0;
+		int cnt = 0;
+
+		/* output */
+		for (int yy = yn + 1; yy < ys; yy++) {
+			int xe, xw;
+			for (xe = x - 1; CBCA_CONDITIONS(xe, yy); xe--) {};
+			for (xw = x + 1; CBCA_CONDITIONS(xw, yy); xw++) {};
+
+			for (int xx = xe + 1; xx < xw; xx++) {
+				float val = disp[(d * height + yy) * width + xx];
+				if (val > -1e38) {
+					sum += val;
+					cnt++;
+				}
+			}
+		}
+
+		if (grad_input == NULL) {
+			disp_out[(d * height + y) * width + x] = sum / cnt;
+			return;
+		}
+
+		/* grad */
+		float g = grad_output[(d * height + y) * width + x] / cnt;
+		for (int yy = yn + 1; yy < ys; yy++) {
+			int xe, xw;
+			for (xe = x - 1; CBCA_CONDITIONS(xe, yy); xe--) {};
+			for (xw = x + 1; CBCA_CONDITIONS(xw, yy); xw++) {};
+
+			for (int xx = xe + 1; xx < xw; xx++) {
+				float val = disp[(d * height + yy) * width + xx];
+				if (val > -1e38) {
+					atomicAdd(grad_input + (d * height + yy) * width + xx, g);
+				}
+			}
+		}
+	}
+}
+
+/* cross-based cost aggregation */
+int cbca_costGrad(lua_State *L)
+{
+	THCudaTensor *img = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
+	THCudaTensor *disp = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
+	THCudaTensor *disp_out = (THCudaTensor*)luaT_checkudata(L, 3, "torch.CudaTensor");
+	THCudaTensor *grad_input = (THCudaTensor*)luaT_checkudata(L, 4, "torch.CudaTensor");
+	THCudaTensor *grad_output = (THCudaTensor*)luaT_checkudata(L, 5, "torch.CudaTensor");
+	float tau = luaL_checknumber(L, 6);
+	int L1 = luaL_checkinteger(L, 7);
+	int compute_grad = luaL_checkinteger(L, 8);
+
+	cbca_costGrad_kernel<<<(THCudaTensor_nElement(disp) - 1) / TB + 1, TB>>>(
+		THCudaTensor_data(img),
+		THCudaTensor_data(disp),
+		THCudaTensor_data(disp_out),
+		compute_grad == 0 ? NULL : THCudaTensor_data(grad_input),
+		compute_grad == 0 ? NULL : THCudaTensor_data(grad_output),
+		THCudaTensor_nElement(disp),
+		THCudaTensor_size(disp, 1),
+		THCudaTensor_size(img, 2),
+		THCudaTensor_size(img, 3),
+		tau, L1);
+
+	checkCudaError(L);
+	return 0;
+}
+
 static const struct luaL_Reg funcs[] = {
 	{"add", add},
 	{"add_mat_vect", add_mat_vect},
@@ -1489,6 +1578,8 @@ static const struct luaL_Reg funcs[] = {
 
 	{"SpatialMargin1_costGrad", SpatialMargin1_costGrad},
 	{"SpatialMargin2_costGrad", SpatialMargin2_costGrad},
+
+	{"cbca_costGrad", cbca_costGrad},
 
 	{NULL, NULL}
 };

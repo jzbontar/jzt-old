@@ -193,13 +193,39 @@ function test.SpatialRandnPadding()
    print(testJacobian(n, A))
 end
 
-test = {}
 function test.Margin2Loss()
    A = torch.CudaTensor(1, 3, 4, 4):normal()
    T = torch.CudaTensor(1, 1, 4, 4):uniform():mul(4):floor()
    n = jzt.Margin2Loss(1)
    
    print(testCriterion(n, A, T))
+end
+
+test = {}
+function test.cbca()
+   img = torch.CudaTensor(1, 1, 5, 6):normal()
+   disp = torch.CudaTensor(1, 7, 5, 6):normal()
+   n = jzt.CBCA(img, 0.1, 2)
+   print(testJacobian(n, disp))
+
+--   height = 250
+--   width = 1242
+--   n_tr = 194
+--   n_te = 195
+--   xl0 = torch.FloatTensor(torch.FloatStorage('/home/jure/devel/kitti/data/xl0.bin')):reshape(n_tr + n_te, 1, height, width)
+--   pred = torch.FloatTensor(torch.FloatStorage('/home/jure/devel/kitti/tmp/pred_juretov_1_00001')):reshape(1, 228, height, width)
+--
+--   img = xl0[1]:reshape(1, 1, height, width):cuda()
+--   disp = pred:cuda()
+--
+--   _, i = disp:float():max(2)
+--   image.savePNG('foo0.png', i[{1,1}]:double():div(228))
+--
+--   n = jzt.CBCA(img, 0.2, 20)
+--   n:forward(disp)
+--
+--   _, i = n.output:float():max(2)
+--   image.savePNG('foo1.png', i[{1,1}]:double():div(228))
 end
 
 

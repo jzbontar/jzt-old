@@ -5,6 +5,7 @@ require 'cutorch'
 
 include('util.lua')
 
+include('CBCA.lua')
 include('ConvJoin.lua')
 include('ConvSplit.lua')
 include('L2Pooling.lua')
