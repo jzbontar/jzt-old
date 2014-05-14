@@ -173,6 +173,22 @@ struct opShrink {
 	}
 };
 
+struct distL1 {
+	__device__ float forward(float x, float y) {
+		return fabsf(x - y);
+	}
+
+	__device__ float backward(float x, float y) {
+		if (x > y) {
+			return 1;
+		} else if (x < y) {
+			return -1;
+		} else {
+			return 0;
+		}
+	}
+};
+
 struct distL2Square {
 	__device__ float forward(float x, float y) {
 		float d = x - y;
@@ -944,6 +960,17 @@ int stereoJoin_updateOutput(lua_State *L)
 			THCudaTensor_size(output, 2),
 			THCudaTensor_size(output, 3),
 			THCudaTensor_size(left, 1));
+	} else if (strcmp(dist, "L1") == 0) {
+		stereoJoin_updateOutput_kernel<<<(THCudaTensor_nElement(output) - 1) / TB + 1, TB>>>(
+			distL1(),
+			THCudaTensor_data(left),
+			THCudaTensor_data(right),
+			THCudaTensor_data(output),
+			THCudaTensor_nElement(output),
+			THCudaTensor_size(output, 1),
+			THCudaTensor_size(output, 2),
+			THCudaTensor_size(output, 3),
+			THCudaTensor_size(left, 1));
 	} else {
 		assert(0);
 	}
@@ -1015,6 +1042,19 @@ int stereoJoin_updateGradInput(lua_State *L)
 	} else if (strcmp(dist, "cos") == 0) {
 		stereoJoin_updateGradInput_kernel<<<(THCudaTensor_nElement(left) - 1) / TB + 1, TB>>>(
 			distCos(),
+			THCudaTensor_data(left),
+			THCudaTensor_data(right),
+			THCudaTensor_data(gradOutput),
+			THCudaTensor_data(leftGrad),
+			THCudaTensor_data(rightGrad),
+			THCudaTensor_nElement(left),
+			THCudaTensor_size(left, 1),
+			THCudaTensor_size(left, 2),
+			THCudaTensor_size(left, 3),
+			THCudaTensor_size(gradOutput, 1));
+	} else if (strcmp(dist, "L1") == 0) {
+		stereoJoin_updateGradInput_kernel<<<(THCudaTensor_nElement(left) - 1) / TB + 1, TB>>>(
+			distL1(),
 			THCudaTensor_data(left),
 			THCudaTensor_data(right),
 			THCudaTensor_data(gradOutput),
