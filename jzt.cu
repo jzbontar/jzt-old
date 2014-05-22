@@ -1532,6 +1532,60 @@ int cbca_costGrad(lua_State *L)
 	return 0;
 }
 
+__global__ void SpatialMaxout_costGrad_kernel(float *input, float *output, float *gradInput, float *gradOutput, int poolsize, int size, int size1, int size23)
+{
+	int output_id = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if (output_id < size) {
+		int id = output_id;
+		int xy = id % size23;
+		id /= size23;
+		int fm = id % size1;
+		id /= size1;
+		int img = id;
+
+		int max_ind = -1;
+		float max_val = -2e38;
+		for (int i = fm * poolsize; i < (fm + 1) * poolsize; i++) {
+			float val = input[(img * size1 * poolsize + i) * size23 + xy];
+			if (val > max_val) {
+				max_val = val;
+				max_ind = i;
+			}
+		}
+		assert(max_ind != -1);
+
+		if (gradOutput == NULL) {
+			output[output_id] = max_val;
+		} else {
+			gradInput[(img * size1 * poolsize + max_ind) * size23 + xy] = gradOutput[output_id];
+		}
+	}
+}
+
+int SpatialMaxout_costGrad(lua_State *L)
+{
+	THCudaTensor *input = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
+	THCudaTensor *output = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
+	THCudaTensor *gradInput = (THCudaTensor*)luaT_checkudata(L, 3, "torch.CudaTensor");
+	THCudaTensor *gradOutput = (THCudaTensor*)luaT_checkudata(L, 4, "torch.CudaTensor");
+	int poolsize = luaL_checkinteger(L, 5);
+	int compute_grad = luaL_checkinteger(L, 6);
+
+	SpatialMaxout_costGrad_kernel<<<(THCudaTensor_nElement(output) - 1) / TB + 1, TB>>>(
+		THCudaTensor_data(input),
+		THCudaTensor_data(output),
+		THCudaTensor_data(gradInput),
+		compute_grad ? THCudaTensor_data(gradOutput) : NULL,
+		poolsize,
+		THCudaTensor_nElement(output),
+		THCudaTensor_size(output, 1),
+		THCudaTensor_size(output, 2) * THCudaTensor_size(output, 3));
+
+	checkCudaError(L);
+	return 0;
+}
+
 static const struct luaL_Reg funcs[] = {
 	{"add", add},
 	{"add_mat_vect", add_mat_vect},
@@ -1580,6 +1634,8 @@ static const struct luaL_Reg funcs[] = {
 	{"SpatialMargin2_costGrad", SpatialMargin2_costGrad},
 
 	{"cbca_costGrad", cbca_costGrad},
+
+	{"SpatialMaxout_costGrad", SpatialMaxout_costGrad},
 
 	{NULL, NULL}
 };

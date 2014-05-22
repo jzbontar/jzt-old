@@ -221,10 +221,17 @@ function test.cbca()
 --   image.savePNG('foo1.png', i[{1,1}]:double():div(228))
 end
 
-test = {}
 function test.Mul()
    A = torch.CudaTensor(6, 8, 4, 12):normal()
    n = jzt.Mul(-1):cuda()
+   print(testJacobian(n, A))
+end
+
+test = {}
+function test.SpatialMaxout()
+   A = torch.CudaTensor(8, 8, 4, 5):normal()
+   n = jzt.SpatialMaxout(2)
+
    print(testJacobian(n, A))
 end
 
