@@ -24,7 +24,9 @@ __global__ void cunn_SpatialLogSoftMax_updateOutput_kernel
 
     // logsum
     for(int i = idx; i < next_idx; i += spatial_size) {
-      logsum += __expf(input[i]-max);
+		if (!isnan(input[i])) {
+		  logsum += __expf(input[i]-max);
+	  	}
     }
 		logsum += constant;
     logsum = __logf(logsum) + max;

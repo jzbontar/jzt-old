@@ -13,6 +13,7 @@ extern "C" {
 
 #include <stdio.h>
 #include <assert.h>
+#include <math_constants.h>
 #include "cublas_v2.h"
 
 #define TB 128
@@ -921,7 +922,7 @@ __global__ void stereoJoin_updateOutput_kernel(Dist dist, float *left, float *ri
 				d += dist.forward(l, r);
 			}
 		} else {
-			d = 2e38;
+			d = CUDART_NAN;
 		}
 		output[((dim0 * size1_out + dim1) * size2 + dim2) * size3 + dim3] = d;
 	}
