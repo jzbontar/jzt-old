@@ -22,6 +22,7 @@ include('SpatialRandnPadding.lua')
 include('Sqrt.lua')
 include('StereoJoin.lua')
 include('Tanh.lua')
+include('Dropout.lua')
 
 include('ClassNLLCriterion.lua')
 include('HuberCost.lua')
