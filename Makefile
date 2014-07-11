@@ -11,7 +11,7 @@ libjzt.so: ${OBJ}
 	nvcc -arch sm_35 -o libjzt.so --shared ${OBJ} $(LDFLAGS)
 
 install: libjzt.so
-	ln -s /home/jure/torch7/jzt/libjzt.so /home/jure/build/torch7/lib/lua/5.1/
+	ln -s /home/jure/torch/jzt/libjzt.so /home/jure/build/torch/installed/lib/torch/lua/
 
 clean:
 	rm -f *.o *.so

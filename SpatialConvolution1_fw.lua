@@ -18,9 +18,14 @@ function SpatialConvolution1_fw:updateOutput(input)
    local fm_out = self.weight:size(1)
 
    self.output:resize(fm_out, h * w)
-   self.output:addmm(0, 1, self.weight, input:resize(fm_in, h * w))
+   input:resize(fm_in, h * w)
+   self.output:addmm(0, 1, self.weight, input)
+   input:resize(1, fm_in, h, w)
    self.output:resize(1, fm_out, h, w)
+
+   self.bias:resize(1, fm_out, 1, 1)
    self.output:add(self.bias:expandAs(self.output))
+   self.bias:resize(fm_out)
 
    return self.output
 end
