@@ -232,13 +232,22 @@ function test.SpatialMaxout()
 
    print(testJacobian(n, A))
 end
-test = {}
 
 function test.Linear1()
    A = torch.CudaTensor(3, 2):normal()
    n = jzt.Linear1(2)
 
    print(testJacobian(n, A))
+   print(testJacobianParameters(n, A))
+end
+
+test = {}
+function test.SpatialConvolution1()
+   A = torch.CudaTensor(1, 2, 3, 4)
+   n = jzt.SpatialConvolution1(2, 5)
+
+   print(testJacobian(n, A))
+   print(testJacobianParameters(n, A))
 end
 
 for k, v in pairs(test) do
