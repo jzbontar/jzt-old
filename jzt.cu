@@ -288,7 +288,7 @@ int set_cols(lua_State *L)
 	return 0;
 }
 
-__global__ void set_spatial_kernel(float *A, int A_stride, float *inds, float val, int len)
+__global__ void set_spatial(float *A, int A_stride, float *inds, float val, int len)
 {
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i < len) {
@@ -305,7 +305,7 @@ int set_spatial(lua_State *L)
 	THCudaTensor *inds = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
 	float val = luaL_checknumber(L, 3);
 	int len = THCudaTensor_nElement(inds);
-	set_spatial_kernel<<<(len - 1)  / TB + 1, TB>>>(THCudaTensor_data(A), A->stride[1], THCudaTensor_data(inds), val, len);
+	set_spatial<<<(len - 1)  / TB + 1, TB>>>(THCudaTensor_data(A), A->stride[1], THCudaTensor_data(inds), val, len);
 	return 0;
 }
 
@@ -334,7 +334,7 @@ int get_spatial_kernel(lua_State *L)
     THCudaTensor *res = (THCudaTensor*)luaT_checkudata(L, 4, "torch.CudaTensor");
     assert(A->nDimension == 4);
     assert(THCudaTensor_nElement(kernel) % 2 == 1);
-    get_spatial_kernel<<<(THCudaTensor_nElement(res) - 1)  / TB + 1, TB>>>(
+    get_spatial_kernel<<<(THCudaTensor_nElement(res) - 1) / TB + 1, TB>>>(
         THCudaTensor_data(A), 
         THCudaTensor_data(inds), 
         THCudaTensor_data(kernel),
@@ -342,6 +342,39 @@ int get_spatial_kernel(lua_State *L)
         THCudaTensor_nElement(res),
         THCudaTensor_size(A, 1),
         THCudaTensor_size(res, 2) * THCudaTensor_size(res, 3),
+        (THCudaTensor_nElement(kernel) - 1) / 2);
+    return 0;
+}
+
+__global__ void set_spatial_kernel(float *A, float *inds, float *k, int size, int size1, int size23, int k_rad)
+{
+    int id = blockIdx.x * blockDim.x + threadIdx.x;
+    if (id < size) {
+        int d = inds[id] - 1;
+        if (d != -1) {
+            for (int i = -k_rad; i <= k_rad; i++) {
+                if (0 <= d + i && d + i < size1) {
+                    A[(d + i) * size23 + id] = k[i + k_rad];
+                }
+            }
+        }
+    }
+}
+
+int set_spatial_kernel(lua_State *L)
+{
+    THCudaTensor *A = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
+    THCudaTensor *inds = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
+    THCudaTensor *kernel = (THCudaTensor*)luaT_checkudata(L, 3, "torch.CudaTensor");
+    assert(A->nDimension == 4);
+    assert(THCudaTensor_nElement(kernel) % 2 == 1);
+    set_spatial_kernel<<<(THCudaTensor_nElement(inds) - 1) / TB + 1, TB>>>(
+        THCudaTensor_data(A), 
+        THCudaTensor_data(inds), 
+        THCudaTensor_data(kernel),
+        THCudaTensor_nElement(inds),
+        THCudaTensor_size(A, 1),
+        THCudaTensor_size(inds, 2) * THCudaTensor_size(inds, 3),
         (THCudaTensor_nElement(kernel) - 1) / 2);
     return 0;
 }
@@ -1644,6 +1677,7 @@ static const struct luaL_Reg funcs[] = {
 	{"relu", relu},
 	{"set_cols", set_cols},
 	{"set_spatial", set_spatial},
+	{"set_spatial_kernel", set_spatial_kernel},
 	{"shrink", shrink},
 	{"sigmoid", sigmoid},
 	{"smul", smul},

@@ -251,14 +251,14 @@ end
 
 test = {}
 function test.SpatialKernelNLLCriterion()
-   A = torch.CudaTensor{1,2,3,4,5,6,2,3,4,5,6,7,3,4,5,6,7,8}:resize(1, 3, 2, 3)
+   A = torch.CudaTensor{1,2,3,4,5,6,2,3,4,5,6,7,3,4,5,6,7,8}:resize(1, 3, 2, 3):zero()
    inds = torch.CudaTensor{0,1,2,3,0,2}:resize(1, 1, 2, 3)
-   kernel = torch.CudaTensor{1,1,1}
+   kernel = torch.CudaTensor{1,3,2}
    res = torch.CudaTensor(1, 1, 2, 3):normal()
-   jzt.get_spatial_kernel(A, inds, kernel, res)
-   print(A)
+
+   jzt.set_spatial_kernel(A, inds, kernel)
    print(inds)
-   print(res)
+   print(A)
 end
 
 for k, v in pairs(test) do
