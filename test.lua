@@ -4,7 +4,6 @@ require 'nn'
 require 'image'
 require 'cunn'
 require 'cutorch'
-require 'prof-torch'
 
 test = {}
 function test.Linear()
@@ -227,10 +226,17 @@ function test.Mul()
    print(testJacobian(n, A))
 end
 
-test = {}
 function test.SpatialMaxout()
    A = torch.CudaTensor(8, 8, 4, 5):normal()
    n = jzt.SpatialMaxout(2)
+
+   print(testJacobian(n, A))
+end
+test = {}
+
+function test.Linear1()
+   A = torch.CudaTensor(3, 2):normal()
+   n = jzt.Linear1(2)
 
    print(testJacobian(n, A))
 end
