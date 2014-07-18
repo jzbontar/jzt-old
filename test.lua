@@ -241,13 +241,24 @@ function test.Linear1()
    print(testJacobianParameters(n, A))
 end
 
-test = {}
 function test.SpatialConvolution1()
    A = torch.CudaTensor(1, 2, 3, 4)
    n = jzt.SpatialConvolution1(2, 5)
 
    print(testJacobian(n, A))
    print(testJacobianParameters(n, A))
+end
+
+test = {}
+function test.SpatialKernelNLLCriterion()
+   A = torch.CudaTensor{1,2,3,4,5,6,2,3,4,5,6,7,3,4,5,6,7,8}:resize(1, 3, 2, 3)
+   inds = torch.CudaTensor{0,1,2,3,0,2}:resize(1, 1, 2, 3)
+   kernel = torch.CudaTensor{1,1,1}
+   res = torch.CudaTensor(1, 1, 2, 3):normal()
+   jzt.get_spatial_kernel(A, inds, kernel, res)
+   print(A)
+   print(inds)
+   print(res)
 end
 
 for k, v in pairs(test) do

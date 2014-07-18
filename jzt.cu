@@ -248,7 +248,7 @@ int get_cols(lua_State *L)
 	return 0;
 }
 
-__global__ void get_spatial_kernel(float *A, int A_stride, float *inds, float *res, int len)
+__global__ void get_spatial(float *A, int A_stride, float *inds, float *res, int len)
 {
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i < len) {
@@ -264,7 +264,7 @@ int get_spatial(lua_State *L)
 	THCudaTensor *res = (THCudaTensor*)luaT_checkudata(L, 3, "torch.CudaTensor");
 	assert(A->nDimension == 4);
 	int len = THCudaTensor_nElement(inds);
-	get_spatial_kernel<<<(len - 1)  / TB + 1, TB>>>(THCudaTensor_data(A), A->stride[1], THCudaTensor_data(inds), THCudaTensor_data(res), len);
+	get_spatial<<<(len - 1)  / TB + 1, TB>>>(THCudaTensor_data(A), A->stride[1], THCudaTensor_data(inds), THCudaTensor_data(res), len);
 	return 0;
 }
 
@@ -307,6 +307,43 @@ int set_spatial(lua_State *L)
 	int len = THCudaTensor_nElement(inds);
 	set_spatial_kernel<<<(len - 1)  / TB + 1, TB>>>(THCudaTensor_data(A), A->stride[1], THCudaTensor_data(inds), val, len);
 	return 0;
+}
+
+__global__ void get_spatial_kernel(float *A, float *inds, float *k, float *res, int size, int size1, int size23, int k_rad)
+{
+    int id = blockIdx.x * blockDim.x + threadIdx.x;
+    if (id < size) {
+        int d = inds[id] - 1;
+        float sum = 0;
+        if (d != -1) {
+            for (int i = -k_rad; i <= k_rad; i++) {
+                if (0 <= d + i && d + i < size1) {
+                    sum += A[(d + i) * size23 + id] * k[i + k_rad];
+                }
+            }
+        }
+        res[id] = sum;
+    }
+}
+
+int get_spatial_kernel(lua_State *L)
+{
+    THCudaTensor *A = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
+    THCudaTensor *inds = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
+    THCudaTensor *kernel = (THCudaTensor*)luaT_checkudata(L, 3, "torch.CudaTensor");
+    THCudaTensor *res = (THCudaTensor*)luaT_checkudata(L, 4, "torch.CudaTensor");
+    assert(A->nDimension == 4);
+    assert(THCudaTensor_nElement(kernel) % 2 == 1);
+    get_spatial_kernel<<<(THCudaTensor_nElement(res) - 1)  / TB + 1, TB>>>(
+        THCudaTensor_data(A), 
+        THCudaTensor_data(inds), 
+        THCudaTensor_data(kernel),
+        THCudaTensor_data(res), 
+        THCudaTensor_nElement(res),
+        THCudaTensor_size(A, 1),
+        THCudaTensor_size(res, 2) * THCudaTensor_size(res, 3),
+        (THCudaTensor_nElement(kernel) - 1) / 2);
+    return 0;
 }
 
 template<class Op>
@@ -1595,6 +1632,7 @@ static const struct luaL_Reg funcs[] = {
 	{"exp", _exp},
 	{"get_cols", get_cols},
 	{"get_spatial", get_spatial},
+	{"get_spatial_kernel", get_spatial_kernel},
 	{"huber", huber},
 	{"huber_deriv", huber_deriv},
 	{"mask", mask},
