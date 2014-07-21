@@ -261,17 +261,15 @@ end
 test = {}
 function test.StereoJoin2()
    disp_max = 2 
-   A = torch.CudaTensor(2, 3, 3, 4):normal()
+   A = torch.CudaTensor(8, 16, 3, 4):normal()
    n = jzt.StereoJoin2(disp_max):cuda()
-
---   n:forward(A)
---   n:backward(A, n.output:clone():fill(1))
---   print(n.gradInput)
 
    print(testJacobian(n, A))
 
+--   n:forward(A)
 --   print(n.output:size())
 --
+--   B = A:double()
 --   left  = B:index(1, torch.range(1,A:size(1),2):long())
 --   right = B:index(1, torch.range(2,A:size(1),2):long())
 --

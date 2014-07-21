@@ -1674,11 +1674,12 @@ __global__ void StereoJoin2_updateOutput(float *input, float *output, int size,
 		int dim1 = id % o_size1;
 		id /= o_size1;
 		int dim0 = id;
+		const int disp_max = o_size1 - 1;
 
 		float dist = 0;
 		for (int fm = 0; fm < i_size1; fm++) {
-			float left  = input[I4(i_size1, i_size2, i_size3, dim0 * 2    , fm, dim2, dim3 + o_size1 - 1)];
-			float right = input[I4(i_size1, i_size2, i_size3, dim0 * 2 + 1, fm, dim2, dim3 + o_size1 - 1 - dim1)];
+			float left  = input[I4(i_size1, i_size2, i_size3, dim0 * 2    , fm, dim2, dim3 + disp_max)];
+			float right = input[I4(i_size1, i_size2, i_size3, dim0 * 2 + 1, fm, dim2, dim3 + disp_max - dim1)];
 			dist += abs(left - right);
 		}
 		output[I4(o_size1, o_size2, o_size3, dim0, dim1, dim2, dim3)] = dist;
@@ -1717,24 +1718,25 @@ __global__ void StereoJoin2_updateGradInput(float *input, float *gradOutput, flo
 		int dim1 = id % o_size1;
 		id /= o_size1;
 		int dim0 = id;
+		const int disp_max = i_size1 - 1;
 
 		float grad = 0;
 		if (dim0 % 2 == 0) {
 			/* left */
-			if (dim3 - i_size1 + 1 >= 0) {
+			if (dim3 - disp_max >= 0) {
 				for (int disp = 0; disp < i_size1; disp++) {
-					float left  = input[I4(o_size1, o_size2, o_size3, dim0 * 2    , dim1, dim2, dim3)];
-					float right = input[I4(o_size1, o_size2, o_size3, dim0 * 2 + 1, dim1, dim2, dim3 - disp)];
-					grad += (left > right ? 1 : -1) * gradOutput[I4(i_size1, i_size2, i_size3, dim0, disp, dim2, dim3 - i_size1 + 1)];
+					float left  = input[I4(o_size1, o_size2, o_size3, dim0    , dim1, dim2, dim3)];
+					float right = input[I4(o_size1, o_size2, o_size3, dim0 + 1, dim1, dim2, dim3 - disp)];
+					grad += (left > right ? 1 : -1) * gradOutput[I4(i_size1, i_size2, i_size3, dim0 / 2, disp, dim2, dim3 - disp_max)];
 				}
 			}
 		} else {
 			/* right */
 			for (int disp = 0; disp < i_size1; disp++) {
-				if (0 <= dim3 - i_size1 + 1 + disp && dim3 + disp < o_size3) {
-					float left  = input[I4(o_size1, o_size2, o_size3, dim0 * 2    , dim1, dim2, dim3 + disp)];
-					float right = input[I4(o_size1, o_size2, o_size3, dim0 * 2 + 1, dim1, dim2, dim3)];
-					grad += (left > right ? -1 : 1) * gradOutput[I4(i_size1, i_size2, i_size3, dim0, disp, dim2, dim3 - i_size1 + 1 + disp)];
+				if (dim3 - disp_max + disp >= 0 && dim3 + disp < o_size3) {
+					float left  = input[I4(o_size1, o_size2, o_size3, dim0 - 1, dim1, dim2, dim3 + disp)];
+					float right = input[I4(o_size1, o_size2, o_size3, dim0    , dim1, dim2, dim3)];
+					grad += (left > right ? -1 : 1) * gradOutput[I4(i_size1, i_size2, i_size3, dim0 / 2, disp, dim2, dim3 - disp_max + disp)];
 				}
 			}
 		}
