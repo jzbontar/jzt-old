@@ -260,24 +260,28 @@ end
 
 test = {}
 function test.StereoJoin2()
-   disp_max = 228 
-   A = torch.CudaTensor(12, 32, 32, 228 + 32):normal()
-   B = A:double()
+   disp_max = 2 
+   A = torch.CudaTensor(2, 3, 3, 4):normal()
    n = jzt.StereoJoin2(disp_max):cuda()
 
-   n:forward(A)
-   print(n.output:size())
+--   n:forward(A)
+--   n:backward(A, n.output:clone():fill(1))
+--   print(n.gradInput)
 
-   left  = B:index(1, torch.range(1,A:size(1),2):long())
-   right = B:index(1, torch.range(2,A:size(1),2):long())
+   print(testJacobian(n, A))
 
-   C = torch.Tensor(A:size(1)/2, disp_max, A:size(3), A:size(4) - disp_max):zero()
-   for i = 1,C:size(2) do
-      ll = left:narrow(4,disp_max+1,C:size(4))
-      rr = right:narrow(4,disp_max+1-i+1,C:size(4))
-      C[{{},i,{},{}}]:copy(torch.add(ll, -1, rr):abs():sum(2))
-   end
-   print(C:add(-1, n.output:double()):abs():max())
+--   print(n.output:size())
+--
+--   left  = B:index(1, torch.range(1,A:size(1),2):long())
+--   right = B:index(1, torch.range(2,A:size(1),2):long())
+--
+--   C = torch.Tensor(A:size(1)/2, disp_max+1, A:size(3), A:size(4) - disp_max):zero()
+--   for i = 1,C:size(2) do
+--      ll = left:narrow(4,disp_max+1,C:size(4))
+--      rr = right:narrow(4,disp_max+1-i+1,C:size(4))
+--      C[{{},i,{},{}}]:copy(torch.add(ll, -1, rr):abs():sum(2))
+--   end
+--   print(C:add(-1, n.output:double()):abs():max())
 
 end
 

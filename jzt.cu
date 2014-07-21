@@ -1657,9 +1657,13 @@ int SpatialMaxout_costGrad(lua_State *L)
 	return 0;
 }
 
+#define I4(s1,s2,s3,d0,d1,d2,d3) (\
+	assert(d0>=0 && d1>=0 && d2>=0 && d3>=0 && d1<s1 && d2<s2 && d3<s3),\
+	(((d0) * (s1) + (d1)) * (s2) + (d2)) * (s3) + (d3))
+
 __global__ void StereoJoin2_updateOutput(float *input, float *output, int size, 
                                          int i_size1, int i_size2, int i_size3, 
-										 int o_size1, int o_size2, int o_size3, int disp_max)
+										 int o_size1, int o_size2, int o_size3)
 {
     int id = blockIdx.x * blockDim.x + threadIdx.x;
     if (id < size) {
@@ -1673,11 +1677,11 @@ __global__ void StereoJoin2_updateOutput(float *input, float *output, int size,
 
 		float dist = 0;
 		for (int fm = 0; fm < i_size1; fm++) {
-			float left  = input[(((dim0 * 2    ) * i_size1 + fm) * i_size2 + dim2) * i_size3 + (dim3 + disp_max)];
-			float right = input[(((dim0 * 2 + 1) * i_size1 + fm) * i_size2 + dim2) * i_size3 + (dim3 + disp_max - dim1)];
+			float left  = input[I4(i_size1, i_size2, i_size3, dim0 * 2    , fm, dim2, dim3 + o_size1 - 1)];
+			float right = input[I4(i_size1, i_size2, i_size3, dim0 * 2 + 1, fm, dim2, dim3 + o_size1 - 1 - dim1)];
 			dist += abs(left - right);
 		}
-		output[((dim0 * o_size1 + dim1) * o_size2 + dim2) * o_size3 + dim3] = dist;
+		output[I4(o_size1, o_size2, o_size3, dim0, dim1, dim2, dim3)] = dist;
 	}
 }
 
@@ -1685,7 +1689,6 @@ int StereoJoin2_updateOutput(lua_State *L)
 {
 	THCudaTensor *input = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
 	THCudaTensor *output = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
-	int disp_max = luaL_checkinteger(L, 3);
 
 	StereoJoin2_updateOutput<<<(THCudaTensor_nElement(output) - 1) / TB + 1, TB>>>(
 		THCudaTensor_data(input),
@@ -1696,11 +1699,68 @@ int StereoJoin2_updateOutput(lua_State *L)
 		THCudaTensor_size(input, 3),
 		THCudaTensor_size(output, 1),
 		THCudaTensor_size(output, 2),
-		THCudaTensor_size(output, 3),
-		disp_max);
+		THCudaTensor_size(output, 3));
 	checkCudaError(L);
 	return 0;
+}
 
+__global__ void StereoJoin2_updateGradInput(float *input, float *gradOutput, float *gradInput, int size,
+                                            int i_size1, int i_size2, int i_size3, 
+										    int o_size1, int o_size2, int o_size3)
+{
+    int id = blockIdx.x * blockDim.x + threadIdx.x;
+    if (id < size) {
+		int dim3 = id % o_size3;
+		id /= o_size3;
+		int dim2 = id % o_size2;
+		id /= o_size2;
+		int dim1 = id % o_size1;
+		id /= o_size1;
+		int dim0 = id;
+
+		float grad = 0;
+		if (dim0 % 2 == 0) {
+			/* left */
+			if (dim3 - i_size1 + 1 >= 0) {
+				for (int disp = 0; disp < i_size1; disp++) {
+					float left  = input[I4(o_size1, o_size2, o_size3, dim0 * 2    , dim1, dim2, dim3)];
+					float right = input[I4(o_size1, o_size2, o_size3, dim0 * 2 + 1, dim1, dim2, dim3 - disp)];
+					grad += (left > right ? 1 : -1) * gradOutput[I4(i_size1, i_size2, i_size3, dim0, disp, dim2, dim3 - i_size1 + 1)];
+				}
+			}
+		} else {
+			/* right */
+			for (int disp = 0; disp < i_size1; disp++) {
+				if (0 <= dim3 - i_size1 + 1 + disp && dim3 + disp < o_size3) {
+					float left  = input[I4(o_size1, o_size2, o_size3, dim0 * 2    , dim1, dim2, dim3 + disp)];
+					float right = input[I4(o_size1, o_size2, o_size3, dim0 * 2 + 1, dim1, dim2, dim3)];
+					grad += (left > right ? -1 : 1) * gradOutput[I4(i_size1, i_size2, i_size3, dim0, disp, dim2, dim3 - i_size1 + 1 + disp)];
+				}
+			}
+		}
+		gradInput[I4(o_size1, o_size2, o_size3, dim0, dim1, dim2, dim3)] = grad;
+	}
+}
+
+int StereoJoin2_updateGradInput(lua_State *L)
+{
+	THCudaTensor *input = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
+	THCudaTensor *gradOutput = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
+	THCudaTensor *gradInput = (THCudaTensor*)luaT_checkudata(L, 3, "torch.CudaTensor");
+
+	StereoJoin2_updateGradInput<<<(THCudaTensor_nElement(gradInput) - 1) / TB + 1, TB>>>(
+		THCudaTensor_data(input),
+		THCudaTensor_data(gradOutput),
+		THCudaTensor_data(gradInput),
+		THCudaTensor_nElement(gradInput),
+		THCudaTensor_size(gradOutput, 1),
+		THCudaTensor_size(gradOutput, 2),
+		THCudaTensor_size(gradOutput, 3),
+		THCudaTensor_size(gradInput, 1),
+		THCudaTensor_size(gradInput, 2),
+		THCudaTensor_size(gradInput, 3));
+	checkCudaError(L);
+	return 0;
 }
 
 static const struct luaL_Reg funcs[] = {
@@ -1757,6 +1817,7 @@ static const struct luaL_Reg funcs[] = {
 	{"SpatialMaxout_costGrad", SpatialMaxout_costGrad},
 
 	{"StereoJoin2_updateOutput", StereoJoin2_updateOutput},
+	{"StereoJoin2_updateGradInput", StereoJoin2_updateGradInput},
 
 	{NULL, NULL}
 };

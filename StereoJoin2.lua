@@ -10,10 +10,13 @@ function StereoJoin2:updateOutput(input)
    local h = input:size(3)
    local w = input:size(4)
 
-   self.output:resize(bs / 2, self.disp_max, h, w - self.disp_max)
-   jzt.StereoJoin2_updateOutput(input, self.output, self.disp_max)
+   self.output:resize(bs / 2, self.disp_max + 1, h, w - self.disp_max)
+   jzt.StereoJoin2_updateOutput(input, self.output)
    return self.output
 end
 
 function StereoJoin2:updateGradInput(input, gradOutput)
+   self.gradInput:resizeAs(input)
+   jzt.StereoJoin2_updateGradInput(input, gradOutput, self.gradInput)
+   return self.gradInput
 end
