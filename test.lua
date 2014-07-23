@@ -133,12 +133,6 @@ function test.SpatialNormalization()
    print(testJacobian(n, A))
 end
 
-function test.StereoJoin()
-   A = torch.CudaTensor(6, 8, 4, 12):normal()
-   n = jzt.StereoJoin(3, 'L2_square')
-   print(testJacobian(n, A))
-end
-
 function test.Sqrt()
    cutorch.manualSeed(42)
    A = torch.CudaTensor(5):uniform()
@@ -258,6 +252,7 @@ function test.SpatialKernelNLLCriterion()
    print(testCriterion(n, A, target))
 end
 
+<<<<<<< HEAD
 test = {}
 function test.ClassNLLCriterion()
    A = torch.CudaTensor(10, 3):normal()
@@ -267,6 +262,40 @@ function test.ClassNLLCriterion()
    print(testCriterion(n, A, target))
 end
 
+=======
+function test.StereoJoin()
+   A = torch.CudaTensor(6, 8, 4, 12):normal()
+   n = jzt.StereoJoin(3, 'L1')
+   print(testJacobian(n, A))
+end
+
+test = {}
+function test.StereoJoin2()
+   disp_max = 2 
+   A = torch.CudaTensor(8, 16, 3, 4):normal()
+   n = jzt.StereoJoin2(disp_max):cuda()
+
+   print(testJacobian(n, A))
+
+--   n:forward(A)
+--   print(n.output:size())
+--
+--   B = A:double()
+--   left  = B:index(1, torch.range(1,A:size(1),2):long())
+--   right = B:index(1, torch.range(2,A:size(1),2):long())
+--
+--   C = torch.Tensor(A:size(1)/2, disp_max+1, A:size(3), A:size(4) - disp_max):zero()
+--   for i = 1,C:size(2) do
+--      ll = left:narrow(4,disp_max+1,C:size(4))
+--      rr = right:narrow(4,disp_max+1-i+1,C:size(4))
+--      C[{{},i,{},{}}]:copy(torch.add(ll, -1, rr):abs():sum(2))
+--   end
+--   print(C:add(-1, n.output:double()):abs():max())
+
+end
+
+
+>>>>>>> 5c2f6ad92482f69d7bd308333ed7a24e0317a41c
 for k, v in pairs(test) do
    print('Testing ' .. k)
    v()

@@ -23,6 +23,7 @@ include('SpatialNormalization.lua')
 include('SpatialRandnPadding.lua')
 include('Sqrt.lua')
 include('StereoJoin.lua')
+include('StereoJoin2.lua')
 include('Tanh.lua')
 include('Dropout.lua')
 
