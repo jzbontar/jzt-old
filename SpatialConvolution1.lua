@@ -47,6 +47,7 @@ function SpatialConvolution1:updateGradInput(input, gradOutput)
    self.gradInput:addmm(0, 1, self.weight:t(), gradOutput)
    self.gradInput:resize(1, self.fm_in, h, w)
    gradOutput:resize(1, self.fm_out, h, w)
+   return self.gradInput
 end
 
 function SpatialConvolution1:accGradParameters(input, gradOutput)

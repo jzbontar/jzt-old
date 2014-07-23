@@ -249,12 +249,20 @@ function test.SpatialConvolution1()
    print(testJacobianParameters(n, A))
 end
 
-test = {}
 function test.SpatialKernelNLLCriterion()
    A = torch.CudaTensor(1, 5, 3, 4):normal()
    target = torch.CudaTensor(1, 1, 3, 4):uniform(0, 6):floor()
    kernel = torch.CudaTensor{1,2,1}
    n = jzt.SpatialKernelNLLCriterion(kernel):cuda()
+
+   print(testCriterion(n, A, target))
+end
+
+test = {}
+function test.ClassNLLCriterion()
+   A = torch.CudaTensor(10, 3):normal()
+   target = torch.CudaTensor(10):uniform(0, 4):floor()
+   n = jzt.ClassNLLCriterion():cuda()
 
    print(testCriterion(n, A, target))
 end

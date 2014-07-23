@@ -12,7 +12,7 @@ function SpatialKernelNLLCriterion:updateOutput(input, target)
    jzt.get_spatial_kernel(input, target, self.kernel, self.tmp)
    self.output = -self.tmp:sum()
    self.tmp:ne(target, 0)
-   self.cnt = self.tmp:sum()
+   self.cnt = self.tmp:sum() + 1e-5
    self.output = self.output / self.cnt
    return self.output
 end
