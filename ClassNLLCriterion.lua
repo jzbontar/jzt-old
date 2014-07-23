@@ -2,8 +2,6 @@ local ClassNLLCriterion, parent = torch.class('jzt.ClassNLLCriterion', 'nn.Crite
 
 function ClassNLLCriterion:__init()
    parent.__init(self)
-   self:cuda()
-   self.sizeAverage = true
    self.tmp = torch.CudaTensor()
 end
 
@@ -11,22 +9,14 @@ function ClassNLLCriterion:updateOutput(input, target)
    self.tmp:resizeAs(target)
    jzt.get_cols(input, target, self.tmp)
    self.output = -self.tmp:sum()
-
-   if self.sizeAverage then
-      self.output = self.output / target:size(1)
-   end
+   self.size = self.tmp:ne(target, 0):sum()
+   self.output = self.output / self.size
    return self.output
 end
 
 function ClassNLLCriterion:updateGradInput(input, target)
    self.gradInput:resizeAs(input)
    self.gradInput:zero()
-
-   local z = -1
-   if self.sizeAverage then
-      z = z / target:size(1)
-   end
-   jzt.set_cols(self.gradInput, target, z)
-
+   jzt.set_cols(self.gradInput, target, -1 / self.size)
    return self.gradInput
 end
