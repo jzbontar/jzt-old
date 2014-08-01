@@ -281,12 +281,19 @@ function test.StereoJoin2()
 --   print(C:add(-1, n.output:double()):abs():max())
 end
 
-test = {}
 function test.PairwiseDistance()
    A = torch.CudaTensor(32, 20):normal()
    n = jzt.PairwiseDistance():cuda()
 
    print(testJacobian(n, A))
+end
+
+test = {}
+function test.HingeEmbeddingCriterion()
+   i = torch.CudaTensor(128):uniform()
+   t = torch.CudaTensor(128):uniform():mul(2):floor():mul(2):add(-1)
+   n = jzt.HingeEmbeddingCriterion(1):cuda()
+   print(testCriterion(n, i, t))
 end
 
 for k, v in pairs(test) do
