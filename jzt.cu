@@ -1765,6 +1765,62 @@ int StereoJoin2_updateGradInput(lua_State *L)
 	return 0;
 }
 
+__global__ void PairwiseDistance_updateOutput(float *input, float *output, int size, int size1)
+{
+    int id = blockIdx.x * blockDim.x + threadIdx.x;
+    if (id < size) {
+		float dist = 0;
+		for (int i = 0; i < size1; i++) {
+			float x = input[(2 * id    ) * size1 + i];
+			float y = input[(2 * id + 1) * size1 + i];
+			float d = x - y;
+			dist += d * d;
+		}
+		output[id] = dist;
+	}
+}
+
+int PairwiseDistance_updateOutput(lua_State *L)
+{
+	THCudaTensor *input = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
+	THCudaTensor *output = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
+
+	PairwiseDistance_updateOutput<<<(THCudaTensor_nElement(output) - 1) / TB + 1, TB>>>(
+		THCudaTensor_data(input),
+		THCudaTensor_data(output),
+		THCudaTensor_nElement(output),
+		THCudaTensor_size(input, 1));
+	checkCudaError(L);
+	return 0;
+}
+
+__global__ void PairwiseDistance_updateGradInput(float *input, float *gradOutput, float *gradInput, int size, int size1)
+{
+    int id = blockIdx.x * blockDim.x + threadIdx.x;
+    if (id < size) {
+		int dim0 = id / size1;
+		float x = input[id];
+		float y = dim0 % 2 == 0 ? input[id + size1] : input[id - size1];
+		gradInput[id] = 2 * (x - y) * gradOutput[dim0 / 2];
+	}
+}
+
+int PairwiseDistance_updateGradInput(lua_State *L)
+{
+	THCudaTensor *input = (THCudaTensor*)luaT_checkudata(L, 1, "torch.CudaTensor");
+	THCudaTensor *gradOutput = (THCudaTensor*)luaT_checkudata(L, 2, "torch.CudaTensor");
+	THCudaTensor *gradInput = (THCudaTensor*)luaT_checkudata(L, 3, "torch.CudaTensor");
+
+	PairwiseDistance_updateGradInput<<<(THCudaTensor_nElement(gradInput) - 1) / TB + 1, TB>>>(
+		THCudaTensor_data(input),
+		THCudaTensor_data(gradOutput),
+		THCudaTensor_data(gradInput),
+		THCudaTensor_nElement(gradInput),
+		THCudaTensor_size(input, 1));
+	checkCudaError(L);
+	return 0;
+}
+
 static const struct luaL_Reg funcs[] = {
 	{"add", add},
 	{"add_mat_vect", add_mat_vect},
@@ -1820,6 +1876,9 @@ static const struct luaL_Reg funcs[] = {
 
 	{"StereoJoin2_updateOutput", StereoJoin2_updateOutput},
 	{"StereoJoin2_updateGradInput", StereoJoin2_updateGradInput},
+
+	{"PairwiseDistance_updateOutput", PairwiseDistance_updateOutput},
+	{"PairwiseDistance_updateGradInput", PairwiseDistance_updateGradInput},
 
 	{NULL, NULL}
 };

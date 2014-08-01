@@ -252,24 +252,12 @@ function test.SpatialKernelNLLCriterion()
    print(testCriterion(n, A, target))
 end
 
-<<<<<<< HEAD
-test = {}
-function test.ClassNLLCriterion()
-   A = torch.CudaTensor(10, 3):normal()
-   target = torch.CudaTensor(10):uniform(0, 4):floor()
-   n = jzt.ClassNLLCriterion():cuda()
-
-   print(testCriterion(n, A, target))
-end
-
-=======
 function test.StereoJoin()
    A = torch.CudaTensor(6, 8, 4, 12):normal()
    n = jzt.StereoJoin(3, 'L1')
    print(testJacobian(n, A))
 end
 
-test = {}
 function test.StereoJoin2()
    disp_max = 2 
    A = torch.CudaTensor(8, 16, 3, 4):normal()
@@ -291,11 +279,16 @@ function test.StereoJoin2()
 --      C[{{},i,{},{}}]:copy(torch.add(ll, -1, rr):abs():sum(2))
 --   end
 --   print(C:add(-1, n.output:double()):abs():max())
-
 end
 
+test = {}
+function test.PairwiseDistance()
+   A = torch.CudaTensor(32, 20):normal()
+   n = jzt.PairwiseDistance():cuda()
 
->>>>>>> 5c2f6ad92482f69d7bd308333ed7a24e0317a41c
+   print(testJacobian(n, A))
+end
+
 for k, v in pairs(test) do
    print('Testing ' .. k)
    v()
