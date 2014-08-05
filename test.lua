@@ -297,11 +297,20 @@ end
 
 test = {}
 function test.SpatialConvolutionMMminibatch()
-   A = torch.CudaTensor(2, 1, 9, 9)
-   n = jzt.SpatialConvolutionMMminibatch(1, 3, 5, 5):cuda()
+   A = torch.CudaTensor(128, 200, 9, 9):normal()
+   n1 = jzt.SpatialConvolutionMMminibatch(200, 200, 5, 5):cuda()
+   n2 = nn.SpatialConvolutionMM(200, 200, 5, 5):cuda()
 
-   print(testJacobian(n, A))
-   print(testJacobianParameters(n, A))
+   n2.weight = n1.weight:clone()
+   n2.bias = n1.bias:clone()
+
+   n1:forward(A)
+   n2:forward(A)
+   print(n1.output:add(-1, n2.output):abs():max())
+
+
+--   print(testJacobian(n, A))
+--   print(testJacobianParameters(n, A))
 end
 
 for k, v in pairs(test) do

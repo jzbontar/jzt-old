@@ -46,7 +46,8 @@ function SpatialConvolutionMMminibatch:reset(stdv)
 end
 
 function SpatialConvolutionMMminibatch:updateOutput(input)
-   return jzt.SpatialConvolutionMMminibatch_updateOutput(self, input)
+   self.output = jzt.SpatialConvolutionMMminibatch_updateOutput(self, input):transpose(1, 2)
+   return self.output
 end
 
 function SpatialConvolutionMMminibatch:updateGradInput(input, gradOutput)

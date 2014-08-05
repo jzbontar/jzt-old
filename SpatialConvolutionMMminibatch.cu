@@ -20,24 +20,26 @@ inline int GET_BLOCKS(const int N) {
 __global__ void im2col_kernel(const int n, const float* data_im,
                               const int height, const int width, const int ksize_h, const int ksize_w, const int pad_h,
 			      const int pad_w, const int stride_h, const int stride_w, const int height_col, const int width_col,
-                              float* data_col) {
+                              float* data_col, int channels, int batchSize) {
   CUDA_KERNEL_LOOP(index, n) {
     int w_out = index % width_col;
     index /= width_col;
     int h_out = index % height_col;
-    int channel_in = index / height_col;
+	index /= height_col;
+    int channel_in = index % channels;
+	int batch = index / channels;
     int channel_out = channel_in * ksize_h * ksize_w;
     int h_in = h_out * stride_h - pad_h;
     int w_in = w_out * stride_w - pad_w;
-    data_col += (channel_out * height_col + h_out) * width_col + w_out;
-    data_im += (channel_in * height + h_in) * width + w_in;
+    float *data_col_ = data_col + ((channel_out * batchSize + batch) * height_col + h_out) * width_col + w_out;
+    const float *data_im_ = data_im + ((batch * channels + channel_in) * height + h_in) * width + w_in;
     for (int i = 0; i < ksize_h; ++i) {
       for (int j = 0; j < ksize_w; ++j) {
         int h = h_in + i;
         int w = w_in + j;
-        *data_col = (h >= 0 && w >= 0 && h < height && w < width) ?
-                                             data_im[i * width + j] : 0;
-        data_col += height_col * width_col;
+        *data_col_ = (h >= 0 && w >= 0 && h < height && w < width) ?
+                                             data_im_[i * width + j] : 0;
+        data_col_ += batchSize * height_col * width_col;
       }
     }
   }
@@ -45,17 +47,17 @@ __global__ void im2col_kernel(const int n, const float* data_im,
 
 void im2col(const float* data_im, const int channels,
             const int height, const int width, const int ksize_h, const int ksize_w, const int pad_h,
-	    const int pad_w, const int stride_h, const int stride_w, float* data_col) {
+	    const int pad_w, const int stride_h, const int stride_w, float* data_col, int batchSize) {
   // We are going to launch channels * height_col * width_col kernels, each
   // kernel responsible for copying a single-channel grid.
   int height_col = (height + 2 * pad_h - ksize_h) / stride_h + 1;
   int width_col = (width + 2 * pad_w - ksize_w) / stride_w + 1;
-  int num_kernels = channels * height_col * width_col;
+  int num_kernels = channels * height_col * width_col * batchSize;
   // Launch
   im2col_kernel <<<GET_BLOCKS(num_kernels), CUDA_NUM_THREADS>>> (
                                                                  num_kernels, data_im, height, width, ksize_h, ksize_w, 
                                                                  pad_h, pad_w, stride_h, stride_w, 
-                                                                 height_col, width_col, data_col
+                                                                 height_col, width_col, data_col, channels, batchSize
                                                                  );
 }
 
@@ -131,13 +133,6 @@ static int cunn_SpatialConvolutionMMminibatch_updateOutput(lua_State *L) {
 
   luaL_argcheck(L, input->nDimension == 3 || input->nDimension == 4, 2, "3D or 4D (batch mode) tensor is expected");
 
-  int batch = 1;
-  if (input->nDimension == 3) {
-    // Force batch
-    batch = 0;
-    THCudaTensor_resize4d(input, 1, input->size[0], input->size[1], input->size[2]);
-  }
-
   long inputWidth   = input->size[3];
   long inputHeight  = input->size[2];
   long outputWidth  = (inputWidth + 2*padding - kW) / dW + 1;
@@ -148,83 +143,62 @@ static int cunn_SpatialConvolutionMMminibatch_updateOutput(lua_State *L) {
   long batchSize = input->size[0];
 
   // Resize output
-  THCudaTensor_resize4d(output, batchSize, nOutputPlane, outputHeight, outputWidth);
+  THCudaTensor_resize4d(output, nOutputPlane, batchSize, outputHeight, outputWidth);
 
   // Resize temporary columns
-  THCudaTensor_resize2d(columns, nInputPlane*kW*kH, outputHeight*outputWidth);
+  THCudaTensor_resize2d(columns, nInputPlane*kW*kH, outputHeight*outputWidth*batchSize);
 
   // Define a buffer of ones, for bias accumulation
   // Note: this buffer can be shared with other modules, it only ever gets increased, 
   // and always contains ones.
   if (ones->nDimension != 2 || ones->size[0]*ones->size[1] < outputHeight*outputWidth) {
     // Resize plane and fill with ones...
-    THCudaTensor_resize2d(ones, outputHeight, outputWidth);
+    THCudaTensor_resize2d(ones, outputHeight, outputWidth * batchSize);
     THCudaTensor_fill(ones, 1);
   }
 
-  // Helpers
-  THCudaTensor *input_n = THCudaTensor_new();
-  THCudaTensor *output_n = THCudaTensor_new();
+  // Do Bias first: 
+  // M,N,K are dims of matrix A and B
+  // (see http://docs.nvidia.com/cuda/cublas/#cublas-lt-t-gt-gemm)
+  long m_ = nOutputPlane;
+  long n_ = outputHeight * outputWidth * batchSize;
+  long k_ = 1;
 
-  // For each elt in batch, do:
-  for (int elt = 0; elt < batchSize; elt ++) {
-    // Matrix mulitply per output:
-    THCudaTensor_select(input_n, input, 0, elt);
-    THCudaTensor_select(output_n, output, 0, elt);
-   
-    // Do Bias first: 
-    // M,N,K are dims of matrix A and B
-    // (see http://docs.nvidia.com/cuda/cublas/#cublas-lt-t-gt-gemm)
-    long m_ = nOutputPlane;
-    long n_ = outputHeight * outputWidth;
-    long k_ = 1;
+  // Do GEMM (note: this is a bit confusing because gemm assumes column-major matrices)
+  cublasSgemm(
+    't', 'n',
+    n_, m_, k_,
+    1, 
+    THCudaTensor_data(ones), k_,
+    THCudaTensor_data(bias), k_,
+    0,
+    THCudaTensor_data(output), n_
+  );
 
-    // Do GEMM (note: this is a bit confusing because gemm assumes column-major matrices)
-    cublasSgemm(
-      't', 'n',
-      n_, m_, k_,
-      1, 
-      THCudaTensor_data(ones), k_,
-      THCudaTensor_data(bias), k_,
-      0,
-      THCudaTensor_data(output_n), n_
-    );
+  // Extract columns:
+  im2col(
+ 		  THCudaTensor_data(input),
+ 		  nInputPlane, inputHeight, inputWidth, kH, kW, padding, padding, dH, dW, 
+ 		  THCudaTensor_data(columns), batchSize
+ 		  );
 
-    // Extract columns:
-    im2col(
-           THCudaTensor_data(input_n),
-           nInputPlane, inputHeight, inputWidth, kH, kW, padding, padding, dH, dW, 
-           THCudaTensor_data(columns)
-           );
+  // M,N,K are dims of matrix A and B
+  // (see http://docs.nvidia.com/cuda/cublas/#cublas-lt-t-gt-gemm)
+  long m = weight->size[0];
+  long n = columns->size[1];
+  long k = weight->size[1];
 
-    // M,N,K are dims of matrix A and B
-    // (see http://docs.nvidia.com/cuda/cublas/#cublas-lt-t-gt-gemm)
-    long m = weight->size[0];
-    long n = columns->size[1];
-    long k = weight->size[1];
-
-    // Do GEMM (note: this is a bit confusing because gemm assumes column-major matrices)
-    cublasSgemm(
-                'n', 'n',
-                n, m, k,
-                1, 
-                THCudaTensor_data(columns), n,
-                THCudaTensor_data(weight), k,
-                1,
-                THCudaTensor_data(output_n), n
-                );
-    THCublasCheck();
-  }
-
-  // Free
-  THCudaTensor_free(input_n);
-  THCudaTensor_free(output_n);
-  
-  // Resize output
-  if (batch == 0) {
-    THCudaTensor_resize3d(output, nOutputPlane, outputHeight, outputWidth);
-    THCudaTensor_resize3d(input, nInputPlane, inputHeight, inputWidth);
-  }
+  // Do GEMM (note: this is a bit confusing because gemm assumes column-major matrices)
+  cublasSgemm(
+              'n', 'n',
+              n, m, k,
+              1, 
+              THCudaTensor_data(columns), n,
+              THCudaTensor_data(weight), k,
+              1,
+              THCudaTensor_data(output), n
+              );
+  THCublasCheck();
 
   // return output
   return 1;
@@ -390,7 +364,7 @@ static int cunn_SpatialConvolutionMMminibatch_accGradParameters(lua_State *L) {
     im2col(
            THCudaTensor_data(input_n),
            nInputPlane, inputHeight, inputWidth, kH, kW, padding, padding, dH, dW, 
-           THCudaTensor_data(columns)
+           THCudaTensor_data(columns), batchSize
            );
 
     // M,N,K are dims of matrix A and B
