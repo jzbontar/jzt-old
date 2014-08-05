@@ -288,12 +288,20 @@ function test.PairwiseDistance()
    print(testJacobian(n, A))
 end
 
-test = {}
 function test.HingeEmbeddingCriterion()
    i = torch.CudaTensor(128):uniform()
    t = torch.CudaTensor(128):uniform():mul(2):floor():mul(2):add(-1)
    n = jzt.HingeEmbeddingCriterion(1):cuda()
    print(testCriterion(n, i, t))
+end
+
+test = {}
+function test.SpatialConvolutionMMminibatch()
+   A = torch.CudaTensor(2, 1, 9, 9)
+   n = jzt.SpatialConvolutionMMminibatch(1, 3, 5, 5):cuda()
+
+   print(testJacobian(n, A))
+   print(testJacobianParameters(n, A))
 end
 
 for k, v in pairs(test) do
