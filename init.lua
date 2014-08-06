@@ -27,7 +27,6 @@ include('StereoJoin2.lua')
 include('Tanh.lua')
 include('Dropout.lua')
 include('PairwiseDistance.lua')
-include('SpatialConvolutionMMminibatch.lua')
 
 include('ClassNLLCriterion.lua')
 include('HuberCost.lua')

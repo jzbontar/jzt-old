@@ -1942,11 +1942,9 @@ static const struct luaL_Reg funcs[] = {
 };
 
 void cunn_SpatialLogSoftMax_init(lua_State *L);
-void cunn_SpatialConvolutionMMminibatch_init(lua_State *L);
 
 extern "C" int luaopen_libjzt(lua_State *L) {
 	luaL_openlib(L, "jzt", funcs, 0);
 	cunn_SpatialLogSoftMax_init(L);
-	cunn_SpatialConvolutionMMminibatch_init(L);
 	return 1;
 }
