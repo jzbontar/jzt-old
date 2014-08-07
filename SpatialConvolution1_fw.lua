@@ -17,9 +17,9 @@ function SpatialConvolution1_fw:updateOutput(input)
    local w = input:size(4)
    local fm_out = self.weight:size(1)
 
-   if fm_in == fm_out then
-      self.output = input
-   end
+--   if fm_in == fm_out then
+--      self.output = input
+--   end
 
    input:resize(num_ex, fm_in, h * w)
    self.output:resize(num_ex, fm_out, h * w)
@@ -30,5 +30,10 @@ function SpatialConvolution1_fw:updateOutput(input)
    self.output:resize(num_ex, fm_out, h, w)
 
    self.output:add(self.bias:expandAs(self.output))
+
+   input:storage():resize(0)
+--   input:resize(0)
+--   collectgarbage()
+
    return self.output
 end
